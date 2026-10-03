@@ -551,7 +551,9 @@ def setup(api):
         "add_transaction",
         "Record income or an expense in the user's money ledger. Amount is a "
         "decimal in the transaction currency (IDR by default). Optional: "
-        "category, note, day (YYYY-MM-DD), currency, source (name) or source_id.",
+        "category, note, day (YYYY-MM-DD), currency, source (name) or "
+        "source_id, external_key (dedupe key, e.g. 'gmail:<id>' from "
+        "search_emails — a repeat call with the same key is a no-op).",
         {
             "type": "object",
             "properties": {
@@ -563,6 +565,7 @@ def setup(api):
                 "currency": {"type": "string", "description": "ISO code, default IDR"},
                 "source": {"type": "string", "description": "Spending source name"},
                 "source_id": {"type": "integer"},
+                "external_key": {"type": "string"},
             },
             "required": ["kind", "amount"],
         },
@@ -810,11 +813,41 @@ def setup(api):
         ),
     )
     _tool(
-        "sync_gmail",
-        "Sync Gmail now: scan the mailbox for receipt/payment emails and queue "
-        "parsed transactions into the Money inbox for review.",
-        {"type": "object", "properties": {"email": {"type": "string"}}},
-        _with_conn(lambda conn, a: gmail.sync(conn, a.get("email") or None)),
+        "search_emails",
+        "Search the user's connected Gmail and return matching messages with "
+        "sender, subject, date and body text for you to read and judge. Uses "
+        "Gmail search syntax (from:, after:YYYY/MM/DD, before:, subject:, "
+        "newer_than:Nd); an empty query defaults to recent receipt/payment "
+        "mail. Each result carries external_key 'gmail:<id>' plus recorded/"
+        "queued flags — pass that key as add_transaction's external_key to "
+        "record a message without duplicating it. Read-only: never writes to "
+        "the ledger.",
+        {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Gmail search query, e.g. "
+                    "'from:ocbc.co.id after:2026/09/01'",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max messages to fetch, 1-25 (default 10)",
+                },
+                "email": {
+                    "type": "string",
+                    "description": "Restrict to one connected Gmail account",
+                },
+            },
+        },
+        _with_conn(
+            lambda conn, a: gmail.search(
+                conn,
+                query=a.get("query") or "",
+                limit=a.get("limit") or 10,
+                email=a.get("email") or None,
+            )
+        ),
     )
 
     def _scan_receipt(conn, arguments):

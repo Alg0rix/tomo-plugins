@@ -226,7 +226,94 @@ def _valid_token(conn, account: dict) -> dict:
     return account
 
 
-def sync(conn, email: str | None = None) -> dict:
+def _list_ids(access: str, query: str, limit: int) -> list[str]:
+    listing = _api_get(
+        access,
+        f"{API}/messages",
+        {"q": query, "maxResults": str(limit)},
+    )
+    return [m["id"] for m in listing.get("messages") or []]
+
+
+def _get_full(access: str, message_id: str) -> dict:
+    return _api_get(access, f"{API}/messages/{message_id}", {"format": "full"})
+
+
+def search(
+    conn,
+    query: str = "",
+    limit: int = 10,
+    email: str | None = None,
+) -> dict:
+    """Search connected Gmail and return readable messages for the agent.
+
+    Read-only: each result flags whether its external_key is already recorded
+    or queued so the agent can skip or record it deliberately.
+    """
+    rows = _raw_account(
+        conn,
+        " WHERE email=?" if email else "",
+        (email,) if email else (),
+    )
+    if not rows:
+        raise GmailError("No Gmail account connected")
+    query = (query or "").strip() or _SEARCH_QUERY
+    limit = min(max(int(limit or 10), 1), 25)
+    recorded = {
+        row[0]
+        for row in conn.execute(
+            "SELECT external_key FROM transactions WHERE external_key IS NOT NULL"
+        )
+        if row[0]
+    }
+    queued = {
+        row[0]
+        for row in conn.execute(
+            "SELECT json_extract(payload,'$.external_key') FROM inbox"
+        )
+        if row[0]
+    }
+    result = {"query": query, "accounts": [], "messages": []}
+    for account in rows:
+        account = _valid_token(conn, account)
+        try:
+            ids = _list_ids(account["access_token"], query, limit)
+        except GmailError as exc:
+            if str(exc) == "token_expired":
+                account = _refresh(conn, account)
+                ids = _list_ids(account["access_token"], query, limit)
+            else:
+                raise
+        for message_id in ids:
+            try:
+                message = _get_full(account["access_token"], message_id)
+            except GmailError:
+                continue
+            content = capture.gmail_message_content(message)
+            key = f"gmail:{content['id']}"
+            result["messages"].append(
+                {
+                    "id": content["id"],
+                    "external_key": key,
+                    "from": content["from"][:200],
+                    "subject": content["subject"][:200],
+                    "day": content["when"].isoformat() if content["when"] else "",
+                    "snippet": content["snippet"][:240],
+                    "body": content["body"][:3000],
+                    "recorded": key in recorded,
+                    "queued": key in queued,
+                    "account": account["email"],
+                }
+            )
+        result["accounts"].append(account["email"])
+    return result
+
+
+def sync(
+    conn,
+    email: str | None = None,
+    query: str | None = None,
+) -> dict:
     """Fetch receipt-ish mail and enqueue parsed candidates. Idempotent."""
     rows = _raw_account(
         conn,
@@ -235,27 +322,20 @@ def sync(conn, email: str | None = None) -> dict:
     )
     if not rows:
         raise GmailError("No Gmail account connected")
+    query = (query or "").strip() or _SEARCH_QUERY
+    cats = [c["name"] for c in ledger.list_categories(conn)]
     report = {"scanned": 0, "candidates": 0, "duplicates": 0, "accounts": []}
     for account in rows:
         account = _valid_token(conn, account)
         try:
-            listing = _api_get(
-                account["access_token"],
-                f"{API}/messages",
-                {"q": _SEARCH_QUERY, "maxResults": str(_MAX_MESSAGES)},
-            )
+            ids = _list_ids(account["access_token"], query, _MAX_MESSAGES)
         except GmailError as exc:
             if str(exc) == "token_expired":
                 account = _refresh(conn, account)
-                listing = _api_get(
-                    account["access_token"],
-                    f"{API}/messages",
-                    {"q": _SEARCH_QUERY, "maxResults": str(_MAX_MESSAGES)},
-                )
+                ids = _list_ids(account["access_token"], query, _MAX_MESSAGES)
             else:
                 raise
-        messages = listing.get("messages") or []
-        report["scanned"] += len(messages)
+        report["scanned"] += len(ids)
         seen: set[str] = {
             row[0]
             for row in conn.execute(
@@ -263,20 +343,24 @@ def sync(conn, email: str | None = None) -> dict:
             )
             if row[0]
         }
-        for stub in messages:
-            key = f"gmail:{stub.get('id', '')}"
+        seen |= {
+            row[0]
+            for row in conn.execute(
+                "SELECT external_key FROM transactions"
+                " WHERE external_key LIKE 'gmail:%'"
+            )
+            if row[0]
+        }
+        for message_id in ids:
+            key = f"gmail:{message_id}"
             if key in seen:
                 report["duplicates"] += 1
                 continue
             try:
-                message = _api_get(
-                    account["access_token"],
-                    f"{API}/messages/{stub['id']}",
-                    {"format": "full"},
-                )
+                message = _get_full(account["access_token"], message_id)
             except GmailError:
                 continue
-            parsed = capture.parse_gmail_message(message)
+            parsed = capture.parse_gmail_message(message, cats)
             if not parsed:
                 continue
             result = ledger.add_candidate(

@@ -35,9 +35,39 @@ def _load_package():
     import importlib
 
     modules = types.SimpleNamespace()
-    for name in ("store", "ledger", "capture", "gmail"):
+    for name in ("store", "ledger", "capture", "gmail", "ai"):
         setattr(modules, name, importlib.import_module(f"{namespace}.{name}"))
     return modules
+
+
+def _gmail_message(mid, sender, subject, body_text):
+    return {
+        "id": mid,
+        "threadId": "t1",
+        "internalDate": "1768000000000",
+        "snippet": subject,
+        "payload": {
+            "headers": [
+                {"name": "From", "value": sender},
+                {"name": "Subject", "value": subject},
+            ],
+            "mimeType": "text/plain",
+            "body": {
+                "data": base64.urlsafe_b64encode(body_text.encode()).decode()
+            },
+        },
+    }
+
+
+def _link_gmail_account(conn):
+    import time
+
+    conn.execute(
+        "INSERT INTO gmail_accounts (email, access_token, refresh_token,"
+        " expires_at) VALUES ('a@x.com','tok','ref',?)",
+        (int(time.time()) + 3600,),
+    )
+    conn.commit()
 
 
 def test_money_user_isolation_and_durable_data(manager):
@@ -277,6 +307,82 @@ def test_csv_import_and_email_parsing(tmp_path):
     assert parsed["payload"]["amount_minor"] == 4500000
     assert parsed["provenance"]["external_key"] == "gmail:msg1"
     assert parsed["payload"]["merchant"] == "GoPay"
+    conn.close()
+
+
+def test_gmail_search_llm_parse_and_dedupe(tmp_path, monkeypatch):
+    mods = _load_package()
+    conn = mods.store.connect(tmp_path)
+    _link_gmail_account(conn)
+    message = _gmail_message(
+        "m1",
+        "OCBC <alerts@ocbc.co.id>",
+        "Transaction alert",
+        "Your card was charged IDR 250.000 at STARBUCKS on 02-10-2026",
+    )
+
+    def fake_api(access, url, params=None):
+        if url.endswith("/messages"):
+            return {"messages": [{"id": "m1"}]}
+        return message
+
+    monkeypatch.setattr(mods.gmail, "_api_get", fake_api)
+
+    result = mods.gmail.search(conn, "from:ocbc")
+    assert result["query"] == "from:ocbc"
+    msg = result["messages"][0]
+    assert msg["external_key"] == "gmail:m1"
+    assert msg["recorded"] is False and msg["queued"] is False
+    assert "STARBUCKS" in msg["body"] and msg["from"].startswith("OCBC")
+
+    monkeypatch.setattr(
+        mods.ai,
+        "extract_transaction",
+        lambda text, cats: {
+            "kind": "expense",
+            "amount": 250000,
+            "currency": "IDR",
+            "category": "Coffee",
+            "day": "2026-10-02",
+            "merchant": "Starbucks",
+            "note": "Card charge at Starbucks",
+        },
+    )
+    parsed = mods.capture.parse_gmail_message(message, ["Coffee"])
+    assert parsed["payload"]["merchant"] == "Starbucks"
+    assert parsed["payload"]["amount_minor"] == 25000000
+    assert parsed["payload"]["category"] == "Coffee"
+    assert parsed["payload"]["day"] == "2026-10-02"
+
+    report = mods.gmail.sync(conn, query="from:ocbc")
+    assert report["candidates"] == 1
+    again = mods.gmail.search(conn, "from:ocbc")
+    assert again["messages"][0]["queued"] is True
+
+    saved = mods.ledger.add_transaction(
+        conn,
+        {
+            "kind": "expense",
+            "amount": "250000",
+            "category": "Coffee",
+            "external_key": "gmail:m1",
+        },
+    )
+    assert saved["duplicate"] is False
+    third = mods.gmail.search(conn, "from:ocbc")
+    assert third["messages"][0]["recorded"] is True
+    dup = mods.ledger.add_transaction(
+        conn,
+        {
+            "kind": "expense",
+            "amount": "250000",
+            "category": "Coffee",
+            "external_key": "gmail:m1",
+        },
+    )
+    assert dup["duplicate"] is True
+    report = mods.gmail.sync(conn, query="from:ocbc")
+    assert report["duplicates"] == 1 and report["candidates"] == 0
     conn.close()
 
 

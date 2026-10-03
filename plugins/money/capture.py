@@ -150,8 +150,8 @@ def html_to_text(html: str) -> str:
         return unescape(re.sub(r"<[^>]+>", " ", html or ""))
 
 
-def parse_gmail_message(message: dict) -> dict | None:
-    """Extract a candidate transaction from a Gmail API message resource."""
+def gmail_message_content(message: dict) -> dict:
+    """Decode a Gmail API message resource into readable parts."""
     headers = {
         h.get("name", "").lower(): h.get("value", "")
         for h in (message.get("payload", {}).get("headers") or [])
@@ -176,8 +176,6 @@ def parse_gmail_message(message: dict) -> dict | None:
             walk(child)
 
     walk(message.get("payload") or {})
-    body = "\n".join(body_parts)
-    snippet = message.get("snippet") or ""
     when = None
     internal = message.get("internalDate")
     if internal:
@@ -187,17 +185,82 @@ def parse_gmail_message(message: dict) -> dict | None:
             ).date()
         except (ValueError, OSError):
             when = None
-    candidate = parse_email_candidate(
-        headers.get("from", ""), headers.get("subject", snippet), body, when
+    return {
+        "id": message.get("id", ""),
+        "thread_id": message.get("threadId", ""),
+        "from": headers.get("from", ""),
+        "subject": headers.get("subject", "") or (message.get("snippet") or ""),
+        "snippet": message.get("snippet") or "",
+        "body": "\n".join(body_parts),
+        "when": when,
+    }
+
+
+def llm_email_candidate(content: dict, categories: list[str]) -> dict | None:
+    """Use the configured LLM to extract a transaction from an email."""
+    from . import ai
+
+    text = (
+        f"From: {content['from']}\nSubject: {content['subject']}\n\n"
+        + content["body"]
     )
+    fields = ai.extract_transaction(text, categories)
+    if not fields:
+        return None
+    kind = str(fields.get("kind") or "expense").lower()
+    if kind not in ("income", "expense"):
+        kind = "expense"
+    try:
+        minor = ledger.parse_amount_minor(fields.get("amount"))
+    except ledger.ValidationError:
+        return None
+    if minor <= 0 or minor > 10**12:
+        return None
+    when = content.get("when") or date.today()
+    try:
+        day = ledger.parse_day(fields.get("day"))
+    except ledger.ValidationError:
+        day = when.isoformat()
+    merchant = str(fields.get("merchant") or "")[:80] or extract_merchant(
+        content["from"], content["subject"]
+    )
+    note = str(fields.get("note") or content["subject"] or "")[:120] or merchant
+    return {
+        "kind": kind,
+        "amount": f"{minor / 100:.2f}",
+        "amount_minor": minor,
+        "currency": str(fields.get("currency") or "IDR")[:8].upper(),
+        "category": str(fields.get("category") or "Uncategorized")[:80],
+        "merchant": merchant,
+        "note": note,
+        "day": day,
+    }
+
+
+def parse_gmail_message(
+    message: dict, categories: list[str] | None = None
+) -> dict | None:
+    """Extract a candidate transaction from a Gmail API message resource.
+
+    Prefers the configured LLM when categories are supplied; falls back to
+    amount/merchant heuristics when no model is available.
+    """
+    content = gmail_message_content(message)
+    candidate = None
+    if categories:
+        candidate = llm_email_candidate(content, categories)
+    if candidate is None:
+        candidate = parse_email_candidate(
+            content["from"], content["subject"], content["body"], content["when"]
+        )
     if candidate is None:
         return None
     provenance = {
-        "external_key": f"gmail:{message.get('id', '')}",
-        "gmail_thread": message.get("threadId", ""),
-        "from": headers.get("from", "")[:200],
-        "subject": headers.get("subject", "")[:200],
-        "snippet": snippet[:240],
+        "external_key": f"gmail:{content['id']}",
+        "gmail_thread": content["thread_id"],
+        "from": content["from"][:200],
+        "subject": content["subject"][:200],
+        "snippet": content["snippet"][:240],
     }
     return {"payload": candidate, "provenance": provenance}
 

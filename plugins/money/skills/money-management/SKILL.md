@@ -7,7 +7,7 @@ Use Tomo's Money plugin for the current user's ledger. All data is private to th
 
 **Recording transactions**
 
-- `plugin__money__add_transaction` records income or an expense. `kind` is `income` or `expense`, `amount` is a positive decimal string in the transaction currency (IDR by default), `category`/`note`/`day` (YYYY-MM-DD)/`source` (name) or `source_id` are optional.
+- `plugin__money__add_transaction` records income or an expense. `kind` is `income` or `expense`, `amount` is a positive decimal string in the transaction currency (IDR by default), `category`/`note`/`day` (YYYY-MM-DD)/`source` (name) or `source_id`/`external_key` (dedupe key) are optional.
 - `plugin__money__update_transaction` and `plugin__money__delete_transaction` modify entries by id.
 - When an amount, category, or date is ambiguous, confirm with the user before writing. Report the actual saved result.
 
@@ -29,7 +29,7 @@ Use Tomo's Money plugin for the current user's ledger. All data is private to th
 - `plugin__money__scan_receipt` reads a receipt image (workplace path, `attachment:<id>`, or URL) and records it; pass `save=false` to queue it in the inbox for review instead.
 - `plugin__money__ask_extract` parses free text (a pasted receipt, bank SMS, chat message) into a transaction. Confirm details first.
 - `plugin__money__list_inbox`, `plugin__money__confirm_inbox` (with optional field overrides), `plugin__money__dismiss_inbox` manage the review queue for Gmail/receipt/CSV captures.
-- `plugin__money__gmail_status` shows connection state; `plugin__money__sync_gmail` scans the mailbox for receipt mail and queues candidates. Users connect Gmail themselves from `/plugins/money/apps` — if not connected, say so and point them there.
+- `plugin__money__gmail_status` shows connection state. `plugin__money__search_emails` searches the connected mailbox with Gmail syntax (e.g. `from:ocbc.co.id after:2026/09/01`) and returns each message's sender, subject, date and body — read them yourself, extract the transactions with your own judgment, then record each via `plugin__money__add_transaction` passing `external_key` `gmail:<id>` so repeats never duplicate. Results flag `recorded`/`queued` items to skip. Users connect Gmail themselves from `/plugins/money/apps` — if not connected, say so and point them there. The Apps-page "Sync now" button can also bulk-queue receipt mail into the inbox without reading it.
 
 **Pages**
 
