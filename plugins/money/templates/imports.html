@@ -1,0 +1,57 @@
+{% extends "_shell.html" %}
+{% block m_content %}
+<div class="m-page-head">
+  <div>
+    <h1 class="m-title">Imports</h1>
+    <p class="m-sub">Bring money data in — bank CSV exports or a photo of a receipt.</p>
+  </div>
+</div>
+
+<div class="m-reports-grid">
+  <section class="m-card">
+    <h2 class="m-section-h">Bank statement CSV</h2>
+    <p class="m-section-sub">
+      Works with common exports — columns like <span class="m-code">date</span>, <span class="m-code">amount</span>,
+      <span class="m-code">description</span>, <span class="m-code">debit</span>/<span class="m-code">credit</span>, <span class="m-code">mutasi</span>.
+      Rows are committed straight into the ledger with dedup protection.
+    </p>
+    <div class="m-drop" data-url="{{ plugin.base_url }}/imports/csv" data-result="csvResult">
+      <span class="glyph">📄</span>
+      Drop a <b>.csv</b> here or click to browse
+      <div class="m-muted" style="font-size:11.5px;margin-top:4px">max 8 MB · commas, semicolons, or tabs</div>
+      <input type="file" accept=".csv,text/csv">
+    </div>
+    <div class="m-import-result" id="csvResult"></div>
+  </section>
+
+  <section class="m-card">
+    <h2 class="m-section-h">Receipt photo</h2>
+    <p class="m-section-sub">
+      Upload a photo — Tomo's vision model extracts the total, merchant, date and items
+      into the <a href="{{ plugin.base_url }}/inbox">Inbox</a> for you to confirm.
+    </p>
+    <div class="m-drop" data-url="{{ plugin.base_url }}/imports/receipt" data-result="receiptResult">
+      <span class="glyph">🧾</span>
+      Drop a receipt <b>photo</b> here or click to browse
+      <div class="m-muted" style="font-size:11.5px;margin-top:4px">jpg · png · webp — max 12 MB</div>
+      <input type="file" accept="image/jpeg,image/png,image/webp">
+    </div>
+    <div class="m-import-result" id="receiptResult"></div>
+  </section>
+</div>
+
+<section class="m-card m-section">
+  <h2 class="m-section-h">Recent imports</h2>
+  <div style="margin-top:10px">
+    {% for it in imported %}
+    <div class="m-txn-row">
+      <span class="m-ico sm">{{ '📊' if it.origin == 'csv' else ('🧾' if it.origin == 'receipt' else '📧') }}</span>
+      <div class="who"><span class="cat">{{ it.title }}</span><span class="meta">{{ it.created_at[:16].replace('T', ' ') }} · {{ it.origin }}</span></div>
+      {% if it.amount_minor is not none %}<span class="amt">{{ fmt(it.amount_minor) }}</span>{% endif %}
+    </div>
+    {% else %}
+    <p class="m-muted" style="font-size:12.5px">Nothing imported yet.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "_shell.html" %}
+{% block m_content %}
+<div class="m-page-head">
+  <div>
+    <h1 class="m-title">Inbox</h1>
+    <p class="m-sub">Captured from Gmail, receipts, CSVs and agent chat — confirm before they hit your ledger.</p>
+  </div>
+  {% if pending %}
+  <button class="m-btn primary" id="inboxConfirmAll" type="button">Confirm all {{ pending | length }}</button>
+  {% endif %}
+</div>
+
+<div class="m-card" id="inboxList" style="padding:0 20px">
+  {% for it in pending %}
+  <div class="m-inbox-item" data-id="{{ it.id }}">
+    {% if it.has_image %}
+    <img class="thumb" src="{{ plugin.base_url }}/inbox/{{ it.id }}/image" alt="receipt">
+    {% else %}
+    <span class="m-ico">{{ '🧾' if it.origin == 'receipt' else ('📊' if it.origin == 'csv' else '📧' if it.origin == 'gmail' else '💬') }}</span>
+    {% endif %}
+    <div class="body">
+      <div class="ttl">
+        <span class="m-inbox-amt">{{ fmt(it.amount_minor) if it.amount_minor is not none else '—' }}</span>
+        <span>{{ it.title }}</span>
+        <span class="origin {{ it.origin }}">{{ it.origin }}</span>
+      </div>
+      <div class="meta">
+        {% if it.day %}<span>📅 {{ it.day }}</span>{% endif %}
+        {% if it.category %}<span>🏷️ {{ it.category }}</span>{% endif %}
+        {% if it.confidence is not none %}<span>confidence {{ (it.confidence * 100) | int }}%</span>{% endif %}
+      </div>
+      {% if it.snippet %}<div class="snippet">{{ it.snippet }}</div>{% endif %}
+      <div class="m-inbox-edit">
+        <input class="m-input" name="amount" type="number" step="0.01" placeholder="Amount">
+        <input class="m-input" name="category" list="moneyCatList" placeholder="Category" value="{{ it.category or '' }}">
+        <input class="m-input" name="day" type="date" value="{{ it.day or '' }}">
+        <input class="m-input" name="note" placeholder="Note" value="{{ it.title }}">
+      </div>
+    </div>
+    <div class="acts">
+      <button class="m-btn sm primary confirm" type="button">Confirm</button>
+      <button class="m-btn sm ghost edit-toggle" type="button">Edit</button>
+      <button class="m-btn sm ghost dismiss" type="button">Dismiss</button>
+    </div>
+  </div>
+  {% else %}
+  <div class="m-empty"><span class="glyph">📥</span>Inbox zero. Sync Gmail from <a href="{{ plugin.base_url }}/apps">Apps</a>, drop a receipt or CSV in <a href="{{ plugin.base_url }}/imports">Imports</a>, or ask your agent.</div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "_shell.html" %}
+{% block m_content %}
+<div class="m-page-head">
+  <div>
+    <h1 class="m-title">Budgets</h1>
+    <p class="m-sub">Monthly spending limits per category — {{ month }}.</p>
+  </div>
+</div>
+
+<section class="m-card">
+  <h2 class="m-section-h">New budget</h2>
+  <form action="{{ plugin.base_url }}/budgets" method="post" style="display:grid;grid-template-columns:1fr 150px 150px auto;gap:10px;margin-top:12px;align-items:end">
+    <label class="m-field"><span>Category</span>
+      <input class="m-input" name="category" list="moneyCatList" maxlength="80" required placeholder="Eating Out">
+    </label>
+    <label class="m-field"><span>Limit (IDR)</span>
+      <input class="m-input" name="amount" type="number" min="1" step="0.01" required placeholder="2000000">
+    </label>
+    <label class="m-field"><span>Alert at %</span>
+      <input class="m-input" name="alert_pct" type="number" min="1" max="100" value="80" required>
+    </label>
+    <button class="m-btn primary" type="submit">Add budget</button>
+  </form>
+</section>
+
+<div class="m-budget-grid m-section">
+  {% for b in budgets %}
+  <div class="m-card m-budget-card">
+    <div class="head">
+      <span class="m-ico">{{ b.icon or '🎯' }}</span>
+      <span class="nm">{{ b.category }}</span>
+      {% if b.over %}<span class="m-chip neg">Over</span>
+      {% elif b.alert %}<span class="m-chip" style="color:#e7a13c;background:rgba(231,161,60,.13);border-color:transparent">Near limit</span>{% endif %}
+    </div>
+    <div class="nums">
+      <span><strong>{{ fmt(b.spent_minor) }}</strong> spent</span>
+      <span>of {{ fmt(b.amount_minor) }}</span>
+    </div>
+    <div class="m-bar {{ 'over' if b.over else ('warn' if b.alert) }}" style="height:9px"><i style="width:{{ [b.pct, 100] | min }}%"></i></div>
+    <div class="foot">
+      <span>{{ b.pct }}% used</span>
+      <span>{{ 'exceeded by ' ~ fmt(-b.remaining_minor) if b.over else fmt(b.remaining_minor) ~ ' left' }}</span>
+      <form action="{{ plugin.base_url }}/budgets/{{ b.id }}/delete" method="post" style="margin:0">
+        <button class="m-btn ghost sm danger" type="submit" onclick="return confirm('Delete this budget?')">Delete</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div class="m-card m-empty" style="grid-column:1/-1">
+    <span class="glyph">🎯</span>
+    No budgets yet. Ask your agent — e.g. <i>"cap eating out at 2 million a month"</i> — or add one above.
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

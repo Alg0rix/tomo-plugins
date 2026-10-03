@@ -1,4 +1,8 @@
+import base64
 import json
+import sqlite3
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -6,6 +10,8 @@ from fastapi.testclient import TestClient
 
 from app.plugins.manager import PluginManager
 from app.runtime.tools.registry import ToolRegistry
+
+PLUGIN_DIR = Path(__file__).resolve().parents[1] / "plugins/money"
 
 
 @pytest.fixture
@@ -18,6 +24,20 @@ def manager(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "_manager", value)
     yield value
     value.close()
+
+
+def _load_package():
+    """Import the plugin's helper modules as a package, mirroring the loader."""
+    namespace = "money_test_pkg"
+    package = types.ModuleType(namespace)
+    package.__path__ = [str(PLUGIN_DIR)]
+    sys.modules[namespace] = package
+    import importlib
+
+    modules = types.SimpleNamespace()
+    for name in ("store", "ledger", "capture", "gmail"):
+        setattr(modules, name, importlib.import_module(f"{namespace}.{name}"))
+    return modules
 
 
 def test_money_user_isolation_and_durable_data(manager):
@@ -88,7 +108,7 @@ def test_money_pages_and_form_use_shared_agent_ledger(manager, monkeypatch):
     assert client.get("/extensions").status_code == 200
     response = client.get("/plugins/money/")
     assert response.status_code == 200
-    assert "Transactions" in response.text and "Open Tomo chat" in response.text
+    assert "Overview" in response.text and "Money out" in response.text
     response = client.post(
         "/plugins/money/transactions",
         data={
@@ -125,3 +145,203 @@ def test_money_pages_and_form_use_shared_agent_ledger(manager, monkeypatch):
         ).status_code
         == 403
     )
+
+
+def test_legacy_ledger_migration_preserves_rows(tmp_path):
+    mods = _load_package()
+    raw = sqlite3.connect(tmp_path / "ledger.db")
+    raw.execute(
+        "CREATE TABLE transactions (id INTEGER PRIMARY KEY, kind TEXT,"
+        " amount_minor INTEGER, category TEXT, note TEXT, day TEXT)"
+    )
+    raw.execute(
+        "INSERT INTO transactions (kind, amount_minor, category, note, day)"
+        " VALUES ('expense', 99900, 'Food', 'legacy row', '2025-01-05')"
+    )
+    raw.commit()
+    raw.close()
+    conn = mods.store.connect(tmp_path)
+    row = mods.store.one(conn, "SELECT * FROM transactions WHERE id=1")
+    assert row["amount_minor"] == 99900 and row["category"] == "Food"
+    assert row["currency"] == "IDR" and row["day"] == "2025-01-05"
+    assert mods.store.one(conn, "SELECT id FROM sources LIMIT 1")
+    conn.close()
+
+
+def test_budgets_sources_and_report(tmp_path):
+    mods = _load_package()
+    conn = mods.store.connect(tmp_path)
+    source = mods.ledger.add_source(
+        conn, {"name": "Wallet", "type": "cash", "opening_balance": "1000"}
+    )
+    mods.ledger.add_transaction(
+        conn,
+        {
+            "kind": "expense",
+            "amount": "250.50",
+            "category": "Food",
+            "day": "2026-02-10",
+            "source_id": source["id"],
+        },
+    )
+    mods.ledger.set_budget(
+        conn, {"category": "Food", "amount": "200", "month": "2026-02"}
+    )
+    budgets = mods.ledger.list_budgets(conn, "2026-02")
+    assert budgets[0]["spent_minor"] == 25050
+    assert budgets[0]["over"] is True
+    sources = mods.ledger.list_sources(conn)
+    wallet = next(s for s in sources if s["name"] == "Wallet")
+    assert wallet["balance_minor"] == 100000 - 25050
+    report = mods.ledger.report(conn, month="2026-02")
+    assert report["totals"]["expense_minor"] == 25050
+    assert report["categories"][0]["category"] == "Food"
+    assert len(report["daily"]) == 28 and len(report["cumulative"]) == 28
+    conn.close()
+
+
+def test_inbox_confirm_and_dismiss(tmp_path):
+    mods = _load_package()
+    conn = mods.store.connect(tmp_path)
+    added = mods.ledger.add_candidate(
+        conn,
+        "gmail",
+        {
+            "kind": "expense",
+            "amount": "42",
+            "amount_minor": 4200,
+            "merchant": "Tokopedia",
+            "note": "Order 123",
+            "day": "2026-02-11",
+            "category": "Shopping",
+        },
+        {"external_key": "gmail:m1", "subject": "Your receipt"},
+    )
+    items = mods.ledger.list_inbox(conn)
+    assert items[0]["title"] == "Tokopedia" and items[0]["amount_minor"] == 4200
+    confirmed = mods.ledger.confirm_candidate(conn, added["id"], {"category": "Shopping"})
+    tx = mods.store.one(
+        conn, "SELECT * FROM transactions WHERE id=?", (confirmed["transaction_id"],)
+    )
+    assert tx["amount_minor"] == 4200 and tx["external_key"] == "gmail:m1"
+    dup = mods.ledger.add_candidate(
+        conn, "gmail", {}, {"external_key": "gmail:m1"}
+    )
+    assert dup["duplicate"] is True
+    other = mods.ledger.add_candidate(conn, "csv", {"amount": "1"}, {})
+    mods.ledger.dismiss_candidate(conn, other["id"])
+    with pytest.raises(mods.ledger.ValidationError):
+        mods.ledger.dismiss_candidate(conn, other["id"])
+    conn.close()
+
+
+def test_csv_import_and_email_parsing(tmp_path):
+    mods = _load_package()
+    conn = mods.store.connect(tmp_path)
+    csv_text = (
+        "date,type,amount,category,note\n"
+        "2026-02-01,expense,15000,Food,Lunch\n"
+        "02/02/2026,income,500000,Salary,Payday\n"
+        "2026-02-03,debit,7.500,Coffee,Kopi\n"
+    )
+    result = mods.capture.import_csv(conn, csv_text)
+    assert result["imported"] == 3 and result["skipped"] == 0
+    again = mods.capture.import_csv(conn, csv_text)
+    assert again["duplicates"] == 3
+
+    amount = mods.capture.extract_amount("Total pembayaran: Rp 16.519.948")
+    assert amount == (1651994800, "IDR")
+    amount = mods.capture.extract_amount("Payment: USD 12.50")
+    assert amount == (1250, "USD")
+    amount = mods.capture.extract_amount("Tagihan Rp16.519,50")
+    assert amount == (1651950, "IDR")
+
+    body = base64.urlsafe_b64encode(
+        b"Your payment of Rp 45.000 to GoRide was successful. Total: Rp 45.000"
+    ).decode()
+    message = {
+        "id": "msg1",
+        "threadId": "t1",
+        "internalDate": "1768000000000",
+        "snippet": "Payment successful",
+        "payload": {
+            "headers": [
+                {"name": "From", "value": "GoPay <receipts@gopay.co.id>"},
+                {"name": "Subject", "value": "Payment receipt"},
+            ],
+            "mimeType": "text/plain",
+            "body": {"data": body},
+        },
+    }
+    parsed = mods.capture.parse_gmail_message(message)
+    assert parsed["payload"]["amount_minor"] == 4500000
+    assert parsed["provenance"]["external_key"] == "gmail:msg1"
+    assert parsed["payload"]["merchant"] == "GoPay"
+    conn.close()
+
+
+def test_money_toolset_crud_and_reports(manager):
+    from app.runtime.tools.user_ctx import bind_user, reset_user
+
+    manager.install(str(PLUGIN_DIR))
+    manager.change("money", "enable")
+    registry = ToolRegistry()
+    token = bind_user("carol")
+    try:
+        def run(name, args):
+            return json.loads(registry.execute(f"plugin__money__{name}", args))
+
+        source = run("add_source", {"name": "BCA", "type": "bank"})
+        assert source["saved"]
+        txn = run(
+            "add_transaction",
+            {"kind": "expense", "amount": "80", "category": "Food", "source": "bca"},
+        )
+        assert txn["saved"]
+        listed = run("list_transactions", {"category": "Food"})
+        assert listed[0]["source_id"] == source["id"]
+        run("update_transaction", {"id": txn["id"], "amount": "90"})
+        report = run("report", {})
+        assert report["totals"]["expense_minor"] == 9000
+        run("set_budget", {"category": "Food", "amount": "50"})
+        assert run("list_budgets", {})[0]["over"] is True
+        inbox = run("add_transaction", {
+            "kind": "expense", "amount": "5", "category": "Misc",
+        })
+        run("delete_transaction", {"id": inbox["id"]})
+        assert run("list_inbox", {}) == []
+        tools = [t["function"]["name"] for t in
+                 (d[0]["schema"] for d in manager._active["money"]["api"].tools.values())]
+        assert len(tools) == len(set(tools)) >= 16
+    finally:
+        reset_user(token)
+
+
+def test_money_new_pages_render(manager, monkeypatch):
+    from app.main import create_app
+
+    manager.install(str(PLUGIN_DIR))
+    manager.change("money", "enable")
+    app = create_app()
+
+    @app.middleware("http")
+    async def auth(request, call_next):
+        request.state.auth_user_id = "dave"
+        return await call_next(request)
+
+    client = TestClient(app, follow_redirects=False)
+    for path, marker in (
+        ("/plugins/money/", "Money out"),
+        ("/plugins/money/transactions", "Search notes"),
+        ("/plugins/money/reports", "Where the money went"),
+        ("/plugins/money/budgets", "New budget"),
+        ("/plugins/money/sources", "New source"),
+        ("/plugins/money/inbox", "Inbox zero"),
+        ("/plugins/money/imports", "Bank statement CSV"),
+        ("/plugins/money/apps", "Connected apps"),
+    ):
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert marker in response.text, path
+    assert client.get("/plugins/money/static/money.css").status_code == 200
+    assert client.get("/plugins/money/static/money.js").status_code == 200

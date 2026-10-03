@@ -1,0 +1,109 @@
+{% extends "_shell.html" %}
+{% block m_content %}
+<div class="m-page-head">
+  <div>
+    <h1 class="m-title">Overview</h1>
+    <p class="m-sub">{{ data.month }} · {{ data.totals.txns }} transaction{{ 's' if data.totals.txns != 1 }} this month</p>
+  </div>
+  <button class="m-btn primary" data-add-txn>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    Add transaction <span class="kbd">N</span>
+  </button>
+</div>
+
+{% if data.inbox_pending %}
+<a class="m-card" href="{{ plugin.base_url }}/inbox" style="display:flex;align-items:center;gap:12px;padding:13px 18px;text-decoration:none;color:var(--text);margin-bottom:14px">
+  <span class="m-ico sm" style="background:var(--m-accent-soft)">📥</span>
+  <span style="flex:1"><b>{{ data.inbox_pending }}</b> captured item{{ 's' if data.inbox_pending != 1 }} waiting for review</span>
+  <span class="m-chip acc">Review →</span>
+</a>
+{% endif %}
+
+<div class="m-hero">
+  <div class="m-card m-hero-main">
+    <div class="m-hero-label">
+      Money out — {{ data.month }}
+      <span class="m-chip acc m-num">avg {{ fmt((data.totals.expense_minor / (data.totals.txns or 1)) | int) }}/txn</span>
+    </div>
+    <div class="m-hero-num"><span class="cur">Rp</span>{{ fmt(data.totals.expense_minor)[2:] }}</div>
+    <div class="m-hero-flow">
+      <span class="flow-item"><span class="flow-dot" style="background:var(--m-pos)"></span>In <strong>{{ fmt(data.totals.income_minor) }}</strong></span>
+      <span class="flow-item"><span class="flow-dot" style="background:var(--m-neg)"></span>Out <strong>{{ fmt(data.totals.expense_minor) }}</strong></span>
+      <span class="flow-item"><span class="flow-dot" style="background:var(--m-accent)"></span>Net <strong>{{ fmt(data.totals.balance_minor) }}</strong></span>
+    </div>
+  </div>
+  <div class="m-hero-side">
+    <div class="m-card">
+      <span class="k">Sources</span>
+      <span class="v m-num">{{ data.sources | length }}</span>
+      <span class="m-muted" style="font-size:11.5px;margin-top:2px">{{ data.sources | selectattr('id') | map(attribute='name') | join(' · ') or 'Add a wallet or account' }}</span>
+    </div>
+    <div class="m-card">
+      <span class="k">Budgets</span>
+      <span class="v m-num">{{ data.budgets | length }}</span>
+      <span class="m-muted" style="font-size:11.5px;margin-top:2px">{{ data.budgets | selectattr('over') | list | length }} over this month</span>
+    </div>
+  </div>
+</div>
+
+<div class="m-ov-grid">
+  <section class="m-card">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <h2 class="m-section-h">Recent activity</h2>
+      <a href="{{ plugin.base_url }}/transactions" class="m-btn ghost sm">All →</a>
+    </div>
+    <div>
+      {% for t in data.recent %}
+      <div class="m-txn-row">
+        <span class="m-ico sm">{{ (data.categories | selectattr('name', 'equalto', t.category) | first or {}).icon or '🏷️' }}</span>
+        <div class="who">
+          <span class="cat">{{ t.category }}</span>
+          <span class="meta">{{ t.day }}{% if t.source_name %} · {{ t.source_name }}{% endif %}{% if t.note %} · {{ t.note }}{% endif %}</span>
+        </div>
+        <span class="amt {{ 'in' if t.kind == 'income' }}">{{ '+' if t.kind == 'income' else '−' }}{{ fmt(t.amount_minor) }}</span>
+      </div>
+      {% else %}
+      <div class="m-empty"><span class="glyph">🧾</span>No transactions yet.<br>Press <b>N</b>, import a CSV, sync Gmail, or ask your agent.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div>
+    <section class="m-card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <h2 class="m-section-h">Budget health</h2>
+        <a href="{{ plugin.base_url }}/budgets" class="m-btn ghost sm">Manage →</a>
+      </div>
+      <div class="m-budget-mini" style="margin-top:12px">
+        {% for b in data.budgets[:5] %}
+        <div class="m-budget-row">
+          <div class="top">
+            <span class="nm">{{ b.icon }} {{ b.category }}</span>
+            <span class="pv">{{ b.pct }}%</span>
+          </div>
+          <div class="m-bar {{ 'over' if b.over else ('warn' if b.alert) }}"><i style="width:{{ [b.pct, 100] | min }}%"></i></div>
+        </div>
+        {% else %}
+        <p class="m-muted" style="font-size:12.5px">No budgets yet — set one to track monthly limits.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="m-card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <h2 class="m-section-h">Sources</h2>
+        <a href="{{ plugin.base_url }}/sources" class="m-btn ghost sm">Manage →</a>
+      </div>
+      <div style="margin-top:10px">
+        {% for s in data.sources %}
+        <div class="m-txn-row" style="padding:8px 2px">
+          <span class="m-ico sm">{{ s.icon or '💳' }}</span>
+          <div class="who"><span class="cat" style="font-size:13px">{{ s.name }}</span><span class="meta">{{ s.txns }} txns</span></div>
+          <span class="amt">{{ fmt(s.balance_minor) if s.balance_minor is not none else '—' }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

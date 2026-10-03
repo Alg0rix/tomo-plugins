@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ plugin.base_url }}/static/money.css">
+{% block m_head %}{% endblock %}
+{% endblock %}
+{% block content %}
+<div class="m-shell" data-base="{{ plugin.base_url }}">
+  <aside class="m-rail">
+    <a class="m-rail-brand" href="{{ plugin.base_url }}/">
+      <span class="m-rail-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+      </span>
+      <span class="m-rail-name">Money</span>
+    </a>
+    <div class="m-rail-space">
+      <span class="dot">🌿</span>
+      <div><strong>{{ current_username or "My Space" }}</strong><span>Expense &amp; income</span></div>
+    </div>
+    <form class="m-ask" role="search" title="Ask your agent — it can record and analyze spending">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+      <input type="text" placeholder="Ask Money…" aria-label="Ask Money" autocomplete="off">
+    </form>
+
+    <nav class="m-rail-group">
+      <div class="m-rail-label">Money</div>
+      <a class="m-rail-item {{ 'active' if active == 'overview.html' }}" href="{{ plugin.base_url }}/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Overview
+      </a>
+      <a class="m-rail-item {{ 'active' if active == 'transactions.html' }}" href="{{ plugin.base_url }}/transactions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+        Transactions
+      </a>
+      <a class="m-rail-item {{ 'active' if active == 'reports.html' }}" href="{{ plugin.base_url }}/reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+        Reports
+      </a>
+      <a class="m-rail-item {{ 'active' if active == 'budgets.html' }}" href="{{ plugin.base_url }}/budgets">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Budgets
+      </a>
+      <a class="m-rail-item {{ 'active' if active == 'sources.html' }}" href="{{ plugin.base_url }}/sources">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        Spending sources
+      </a>
+    </nav>
+
+    <nav class="m-rail-group">
+      <div class="m-rail-label">Capture</div>
+      <a class="m-rail-item {{ 'active' if active == 'imports.html' }}" href="{{ plugin.base_url }}/imports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Imports
+      </a>
+      <a class="m-rail-item {{ 'active' if active == 'inbox.html' }}" href="{{ plugin.base_url }}/inbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1Z"/></svg>
+        Inbox
+        {% if inbox_count %}<span class="badge">{{ inbox_count }}</span>{% endif %}
+      </a>
+    </nav>
+
+    <nav class="m-rail-group">
+      <div class="m-rail-label">Connected</div>
+      <a class="m-rail-item {{ 'active' if active == 'apps.html' }}" href="{{ plugin.base_url }}/apps">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+        Apps
+      </a>
+    </nav>
+
+    <div class="m-rail-foot">
+      <span class="avatar">{{ (current_username or "M")[0]|upper }}</span>
+      <span>{{ current_username or "You" }} · Money</span>
+    </div>
+  </aside>
+
+  <main class="m-content">
+    {% block m_content %}{% endblock %}
+  </main>
+</div>
+
+{# shared add/edit transaction modal #}
+<div class="m-modal-back" id="txnModal" role="dialog" aria-modal="true" aria-label="Transaction">
+  <div class="m-modal">
+    <h3 id="txnModalTitle">Add transaction</h3>
+    <form id="txnForm">
+      <input type="hidden" name="kind" value="expense">
+      <div class="m-kind-toggle">
+        <button type="button" data-kind="expense" class="sel-expense">↓ Expense</button>
+        <button type="button" data-kind="income">↑ Income</button>
+      </div>
+      <div class="m-form-grid" style="margin-top:12px">
+        <label class="m-field full"><span>Amount</span>
+          <div class="m-amount-wrap"><span class="cur">Rp</span><input class="m-input" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="0"></div>
+        </label>
+        <label class="m-field"><span>Category</span>
+          <input class="m-input" name="category" list="moneyCatList" maxlength="80" placeholder="Uncategorized">
+          <datalist id="moneyCatList">{% for c in (categories or []) %}<option value="{{ c.name }}">{% endfor %}</datalist>
+        </label>
+        <label class="m-field"><span>Date</span>
+          <input class="m-input" name="day" type="date" required>
+        </label>
+        <label class="m-field"><span>Source</span>
+          <select class="m-select" name="source_id">
+            <option value="">No source</option>
+            {% for s in (sources or []) if s.id %}<option value="{{ s.id }}">{{ s.icon }} {{ s.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="m-field"><span>Note</span>
+          <input class="m-input" name="note" maxlength="500" placeholder="Optional note">
+        </label>
+      </div>
+      <div class="m-form-foot">
+        <button type="button" class="m-btn ghost" id="txnModalCancel">Cancel</button>
+        <button type="submit" class="m-btn primary">Save transaction</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ plugin.base_url }}/static/money.js"></script>
+{% block m_scripts %}{% endblock %}
+{% endblock %}

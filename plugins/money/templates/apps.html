@@ -1,0 +1,73 @@
+{% extends "_shell.html" %}
+{% block m_content %}
+<div class="m-page-head">
+  <div>
+    <h1 class="m-title">Connected apps</h1>
+    <p class="m-sub">External accounts that feed your ledger.</p>
+  </div>
+</div>
+
+<section class="m-card">
+  <div class="m-app-card">
+    <span class="m-app-icon" style="background:linear-gradient(135deg,#ea433522,#fbbc0422)">✉️</span>
+    <div class="body">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <h3>Gmail</h3>
+        <span class="m-app-status {{ 'on' if gmail.connected else 'off' }}">
+          <span class="pulse"></span>{{ 'Connected' if gmail.connected else 'Not connected' }}
+        </span>
+      </div>
+      <p class="desc">
+        Money scans receipts, payment alerts and bank notifications in your inbox and queues
+        likely transactions for review. Read-only access, tokens stay on this machine under
+        <span class="m-code">~/.tomo/data/money/</span>, and nothing is committed until you confirm.
+      </p>
+
+      {% if gmail.accounts %}
+      {% for a in gmail.accounts %}
+      <div class="m-acct-row">
+        <span class="m-ico sm">✉️</span>
+        <span class="email">{{ a.email }}</span>
+        {% if a.last_sync_at %}<span class="last">last sync {{ a.last_sync_at[:16].replace('T',' ') }} UTC</span>{% else %}<span class="last">never synced</span>{% endif %}
+        <form action="{{ plugin.base_url }}/apps/gmail/disconnect" method="post" style="margin-left:auto">
+          <button class="m-btn ghost sm danger" type="submit" onclick="return confirm('Disconnect this account?')">Disconnect</button>
+        </form>
+      </div>
+      {% endfor %}
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="m-btn primary" id="gmailSync" type="button">Sync now</button>
+        <a class="m-btn" href="{{ plugin.base_url }}/inbox">Review inbox</a>
+      </div>
+      {% endif %}
+
+      {% if gmail.has_credentials and not gmail.connected %}
+      <div style="margin-top:14px">
+        <a class="m-btn primary" href="{{ plugin.base_url }}/apps/gmail/connect">Connect Gmail</a>
+      </div>
+      {% elif not gmail.has_credentials %}
+      <form class="m-cred-form" action="{{ plugin.base_url }}/apps/gmail/credentials" method="post">
+        <label class="m-field"><span>Google OAuth client ID</span><input class="m-input" name="client_id" required placeholder="…apps.googleusercontent.com" autocomplete="off"></label>
+        <label class="m-field"><span>Client secret</span><input class="m-input" name="client_secret" type="password" required autocomplete="off"></label>
+        <button class="m-btn" type="submit">Save credentials</button>
+      </form>
+      <p class="desc" style="margin-top:10px">
+        Create an OAuth <i>web application</i> client in
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>
+        with Gmail read-only scope enabled and redirect URI
+        <span class="m-code">{{ plugin.base_url }}/apps/gmail/callback</span>
+        (use the full host URL). Credentials are stored locally, not in the repo.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="m-card m-section">
+  <h2 class="m-section-h">Coming soon</h2>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+    <span class="m-chip">🏦 Bank sync</span>
+    <span class="m-chip">📊 Google Sheets</span>
+    <span class="m-chip">💬 Chat capture</span>
+  </div>
+</section>
+{% endblock %}

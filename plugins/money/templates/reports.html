@@ -1,0 +1,76 @@
+{% extends "_shell.html" %}
+{% block m_head %}
+<script>window.__REPORT__ = {{ data | tojson }};</script>
+{% endblock %}
+{% block m_content %}
+<div id="reportsPage" data-month="{{ data.label if data.label | length == 7 else '' }}" data-year="{{ data.label if data.label | length == 4 else '' }}">
+<div class="m-page-head">
+  <div>
+    <h1 class="m-title">Reports</h1>
+    <p class="m-sub">Where the money went, day by day.</p>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="m-seg" id="periodSeg">
+      <button type="button" data-period="month" class="active">Monthly</button>
+      <button type="button" data-period="year">Yearly</button>
+    </div>
+    <div class="m-pager">
+      <button type="button" id="pagerPrev" aria-label="Previous">‹</button>
+      <span class="label" id="reportPagerLabel">{{ data.label }}</span>
+      <button type="button" id="pagerNext" aria-label="Next">›</button>
+    </div>
+  </div>
+</div>
+
+<div class="m-reports-grid">
+  <div>
+    <section class="m-card">
+      <div class="m-hero-label">Money out</div>
+      <div class="m-hero-num m-out-total"><span id="moneyOut"><span class="cur">Rp</span>{{ fmt(data.totals.expense_minor)[2:] }}</span></div>
+      <div class="m-dim" style="font-size:12px;margin-top:6px" id="avgDay">avg {{ fmt(data.avg_daily_minor) }}/day</div>
+      <div class="m-hero-flow" style="margin-top:12px">
+        <span class="flow-item"><span class="flow-dot" style="background:var(--m-pos)"></span>In <strong id="moneyIn">{{ fmt(data.totals.income_minor) }}</strong></span>
+      </div>
+    </section>
+
+    <section class="m-card m-section">
+      <h2 class="m-section-h">Daily trend</h2>
+      <p class="m-section-sub" id="avgDay2">Tap a day to see its transactions</p>
+      <div class="m-cal">
+        <div class="m-cal-dow">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="m-cal-grid" id="calGrid"></div>
+        <div class="m-cal-legend">
+          <span>less</span>
+          <i style="background:color-mix(in srgb,var(--m-accent) 22%,var(--surface-3))"></i>
+          <i style="background:color-mix(in srgb,var(--m-accent) 45%,var(--surface-3))"></i>
+          <i style="background:color-mix(in srgb,var(--m-accent) 68%,var(--surface-3))"></i>
+          <i style="background:var(--m-accent)"></i>
+          <span>more</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="m-card m-section">
+      <h2 class="m-section-h">Spending trend</h2>
+      <p class="m-section-sub">Cumulative, compared with previous period</p>
+      <div class="m-trend">
+        <div class="m-trend-tip"></div>
+        <div id="trendHost"></div>
+      </div>
+      <div class="m-trend-foot"><span class="m-delta-pill" id="deltaPill">—</span></div>
+    </section>
+  </div>
+
+  <div>
+    <section class="m-card">
+      <h2 class="m-section-h">Where the money went</h2>
+      <p class="m-section-sub">Tap a slice or row for its transactions</p>
+      <div class="m-donut-wrap" id="donutHost"></div>
+      <div id="catList"></div>
+    </section>
+  </div>
+</div>
+</div>
+{% endblock %}

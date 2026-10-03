@@ -1,0 +1,51 @@
+{% extends "_shell.html" %}
+{% block m_content %}
+<div class="m-page-head">
+  <div>
+    <h1 class="m-title">Spending sources</h1>
+    <p class="m-sub">Where transactions draw from — cash, cards, e-wallets, banks.</p>
+  </div>
+</div>
+
+<section class="m-card">
+  <h2 class="m-section-h">New source</h2>
+  <form action="{{ plugin.base_url }}/sources" method="post" style="display:grid;grid-template-columns:1fr 160px 140px 110px auto;gap:10px;margin-top:12px;align-items:end">
+    <label class="m-field"><span>Name</span><input class="m-input" name="name" maxlength="80" required placeholder="BCA debit"></label>
+    <label class="m-field"><span>Type</span>
+      <select class="m-select" name="type">
+        <option value="cash">Cash</option><option value="bank">Bank</option>
+        <option value="ewallet">E-wallet</option><option value="card">Card</option>
+        <option value="savings">Savings</option><option value="investment">Investment</option>
+      </select>
+    </label>
+    <label class="m-field"><span>Icon (emoji)</span><input class="m-input" name="icon" maxlength="8" placeholder="💳"></label>
+    <label class="m-field"><span>Opening</span><input class="m-input" name="opening_balance" type="number" step="0.01" placeholder="0"></label>
+    <button class="m-btn primary" type="submit">Add source</button>
+  </form>
+</section>
+
+<div class="m-src-grid m-section">
+  {% for s in sources if s.id %}
+  <div class="m-card m-src-card">
+    <div class="top">
+      <span class="m-ico">{{ s.icon or '💳' }}</span>
+      <div><div class="nm">{{ s.name }}</div><div class="tp">{{ s.type }}</div></div>
+      <form action="{{ plugin.base_url }}/sources/{{ s.id }}/delete" method="post" style="margin-left:auto">
+        <button class="m-btn ghost sm danger" type="submit" onclick="return confirm('Remove this source? Transactions stay, but lose their link.')">✕</button>
+      </form>
+    </div>
+    <div class="bal">{{ fmt(s.balance_minor) if s.balance_minor is not none else '—' }}</div>
+    <div class="flow">
+      <span class="in">+{{ fmt(s.income_minor or 0) }}</span>
+      <span class="out">−{{ fmt(s.expense_minor or 0) }}</span>
+      <span class="m-muted">{{ s.txns }} txns</span>
+    </div>
+  </div>
+  {% else %}
+  <div class="m-card m-empty" style="grid-column:1/-1">
+    <span class="glyph">💳</span>
+    No sources yet — "Uncategorized" is used automatically. Add a wallet or account to track balances.
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
