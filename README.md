@@ -49,3 +49,25 @@ checks metadata and Python syntax without importing or running plugins.
 
 Open a pull request here for changes to official plugins. Community authors
 submit listings to tomo-marketplace or distribute directly from their own repo.
+
+## Icons
+
+Set `"icon": "wallet"` (Money), `"chart-column"` (Token Monitor), or `"columns-3"`
+(Task Board) in both the plugin manifest and marketplace listing. Tomo renders
+locally vendored open-source Lucide icons on cards, details, and sidebar entries.
+Supported icon names are enumerated by `schema/marketplace.schema.json`.
+
+## Ownership and tests
+
+Token Monitor, Task Board, and Money are owned here. Tomo core provides the SDK,
+loader, permissions, and agent integration; it does not bundle feature code.
+Fresh users install plugins from Discover. Existing bundled registrations migrate
+once to official Git sources while keeping enabled state and usage data.
+
+Run runtime integration tests against a Tomo checkout using its environment:
+
+```sh
+PYTHONPATH=/path/to/tomo /path/to/tomo/.venv/bin/pytest -n 0 tests -q
+```
+
+Tests use temporary Tomo home, work, and database directories.

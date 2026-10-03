@@ -37,6 +37,24 @@
         },
         "source": {
           "$ref": "#/$defs/GitSource"
+        },
+        "icon": {
+          "type": "string",
+          "default": "puzzle",
+          "enum": [
+            "puzzle",
+            "wallet",
+            "chart-column",
+            "columns-3",
+            "library",
+            "notebook",
+            "calendar",
+            "globe",
+            "code",
+            "briefcase",
+            "heart",
+            "layout-grid"
+          ]
         }
       },
       "required": [

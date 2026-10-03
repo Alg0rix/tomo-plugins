@@ -3,5 +3,6 @@
   "name": "Money",
   "description": "Personal income and expense tracking, available to Tomo agents.",
   "version": "0.1.0",
-  "sdk_version": 1
+  "sdk_version": 1,
+  "icon": "wallet"
 }

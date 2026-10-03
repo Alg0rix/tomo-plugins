@@ -1,1 +1,8 @@
-{"id":"token_monitor","name":"Token Monitor","description":"Usage heatmap, agent and session leaderboards, and recent activity.","version":"0.3","sdk_version":1,"default_enabled":true}
+{
+  "id": "token_monitor",
+  "name": "Token Monitor",
+  "description": "Usage heatmap, agent and session leaderboards, and recent activity.",
+  "version": "0.3",
+  "sdk_version": 1,
+  "icon": "chart-column"
+}

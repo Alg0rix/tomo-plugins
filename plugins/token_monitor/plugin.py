@@ -1,4 +1,4 @@
-"""Bundled usage analytics plugin."""
+"""Official usage analytics plugin."""
 
 from fastapi import Request
 

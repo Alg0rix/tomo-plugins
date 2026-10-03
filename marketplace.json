@@ -15,7 +15,8 @@
         "url": "https://github.com/Alg0rix/tomo-plugins.git",
         "ref": "main",
         "subdirectory": "plugins/kanban"
-      }
+      },
+      "icon": "columns-3"
     },
     {
       "id": "money",
@@ -29,7 +30,8 @@
         "url": "https://github.com/Alg0rix/tomo-plugins.git",
         "ref": "main",
         "subdirectory": "plugins/money"
-      }
+      },
+      "icon": "wallet"
     },
     {
       "id": "token_monitor",
@@ -43,7 +45,8 @@
         "url": "https://github.com/Alg0rix/tomo-plugins.git",
         "ref": "main",
         "subdirectory": "plugins/token_monitor"
-      }
+      },
+      "icon": "chart-column"
     }
   ]
 }
