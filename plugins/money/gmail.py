@@ -29,6 +29,9 @@ _SEARCH_QUERY = (
 )
 _MAX_MESSAGES = 60
 _TIMEOUT = httpx.Timeout(20.0)
+# OAuth callback work must stay well under typical reverse-proxy budgets —
+# the exchange + profile fetch run sequentially inside one request.
+_OAUTH_TIMEOUT = httpx.Timeout(10.0)
 
 
 class GmailError(RuntimeError):
@@ -113,7 +116,7 @@ def finish_oauth(conn, code: str, state: str) -> dict:
                 "grant_type": "authorization_code",
                 "redirect_uri": redirect_uri,
             },
-            timeout=_TIMEOUT,
+            timeout=_OAUTH_TIMEOUT,
         )
     except httpx.HTTPError as exc:
         raise GmailError(f"Token exchange failed: {exc}") from None
@@ -125,7 +128,7 @@ def finish_oauth(conn, code: str, state: str) -> dict:
     expires_at = int(time.time()) + int(tokens.get("expires_in") or 3600) - 60
     if not access:
         raise GmailError("Google returned no access token")
-    profile = _api_get(access, f"{API}/profile")
+    profile = _api_get(access, f"{API}/profile", timeout=_OAUTH_TIMEOUT)
     email = profile.get("emailAddress") or "gmail"
     existing = _raw_account(
         conn, " WHERE email=?", (email,)
@@ -173,13 +176,18 @@ def disconnect(conn, email: str | None = None) -> dict:
     return {"disconnected": True}
 
 
-def _api_get(access_token: str, url: str, params: dict | None = None) -> dict:
+def _api_get(
+    access_token: str,
+    url: str,
+    params: dict | None = None,
+    timeout: httpx.Timeout | None = None,
+) -> dict:
     try:
         resp = httpx.get(
             url,
             params=params or {},
             headers={"Authorization": f"Bearer {access_token}"},
-            timeout=_TIMEOUT,
+            timeout=timeout or _TIMEOUT,
         )
     except httpx.HTTPError as exc:
         raise GmailError(f"Gmail request failed: {exc}") from None

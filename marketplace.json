@@ -22,7 +22,7 @@
       "id": "money",
       "name": "Money",
       "description": "Personal finance workspace: ledger, budgets, spending sources, reports and charts, Gmail sync, receipt and CSV capture, and a full agent toolset.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "sdk_version": 1,
       "author": "Alg0rix",
       "source": {
