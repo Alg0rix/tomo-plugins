@@ -469,3 +469,29 @@ def test_money_new_pages_render(manager, monkeypatch):
         assert marker in response.text, path
     assert client.get("/plugins/money/static/money.css").status_code == 200
     assert client.get("/plugins/money/static/money.js").status_code == 200
+
+
+def test_money_home_card_is_per_user(manager):
+    from app.runtime.tools.user_ctx import bind_user, reset_user
+    from app.services.home import normalize_card
+
+    manager.install(str(PLUGIN_DIR))
+    manager.change("money", "enable")
+    empty = manager.home_contributions("bob")["cards"][0]["data"]
+    assert "empty" in normalize_card(empty)
+    token = bind_user("alice")
+    try:
+        ToolRegistry().execute(
+            "plugin__money__add_transaction",
+            {"kind": "expense", "amount": "4210000", "category": "Food"},
+        )
+    finally:
+        reset_user(token)
+    out = manager.home_contributions("alice")
+    card = normalize_card(out["cards"][0]["data"])
+    assert card["metric"] == {"value": "Rp4.21jt", "label": "spent this month"}
+    assert card["ring"]["segments"] == [{"label": "Food", "value": 421000000.0, "text": "100%"}]
+    assert card["chart"][-1]["value"] == 421000000.0
+    assert out["cards"][0]["size"] == "m" and out["cards"][0]["kanji"] == "金"
+    assert {s["label"] for s in out["starters"]} == {"Log a purchase", "This month's spending"}
+    assert "empty" in normalize_card(manager.home_contributions("bob")["cards"][0]["data"])

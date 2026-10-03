@@ -84,6 +84,83 @@ def setup(api):
     api.page("/imports", "Imports")
     api.page("/apps", "Connected apps")
 
+    # ------------------------------------------------------------- home room
+    def _short(minor) -> str:
+        value = abs(int(minor or 0)) / 100
+        sign = "-" if (minor or 0) < 0 else ""
+        for limit, suffix in ((1e9, "M"), (1e6, "jt"), (1e3, "rb")):
+            if value >= limit:
+                return f"{sign}Rp{value / limit:.2f}".rstrip("0").rstrip(".") + suffix
+        return f"{sign}Rp{value:,.0f}"
+
+    def home_card(user_id):
+        with db(user_id) as conn:
+            data = ledger.overview(conn)
+            month = ledger.report(conn)
+        totals = data["totals"]
+        if not totals["txns"] and not data["budgets"]:
+            return {
+                "empty": "No transactions this month yet.",
+                "actions": [{"label": "Log a purchase", "prompt": "Help me log a purchase in Money."}],
+            }
+        over = [b for b in data["budgets"] if b["over"]]
+        status = None
+        if over:
+            status = {"text": f"{len(over)} over budget", "tone": "hot"}
+        elif data["inbox_pending"]:
+            status = {"text": f"{data['inbox_pending']} to review", "tone": "warm"}
+        daily = month["daily"][: month["days_elapsed"]]
+        chart = [
+            {"label": str(int(point["day"][8:])), "value": point["expense"]}
+            for point in daily
+        ]
+        categories = month["categories"]
+        segments = [
+            {"label": c["category"], "value": c["total"], "text": f"{round(c['share'])}%"}
+            for c in categories[:4]
+        ]
+        rest = sum(c["total"] for c in categories[4:])
+        if rest:
+            share = round(sum(c["share"] for c in categories[4:]))
+            segments.append({"label": "Other", "value": rest, "text": f"{share}%"})
+        bars = []
+        for budget in sorted(data["budgets"], key=lambda b: -b["pct"])[:3]:
+            tone = "hot" if budget["over"] else "warm" if budget["alert"] else ""
+            bars.append(
+                {
+                    "label": budget["category"],
+                    "value": min(1.0, budget["pct"] / 100),
+                    "text": f"{budget['pct']}%",
+                    "tone": tone,
+                }
+            )
+        card = {
+            "metric": {"value": _short(totals["expense_minor"]), "label": "spent this month"},
+            "caption": f"{totals['txns']} transactions · income {_short(totals['income_minor'])}"
+            f" · ~{_short(month['avg_daily_minor'])}/day",
+            "actions": [
+                {"label": "Where did it go?", "prompt": "Where did my money go this month? Break it down by category."},
+                {"label": "Transactions", "href": api.base_url + "/transactions"},
+            ],
+        }
+        if status:
+            card["status"] = status
+        if sum(p["value"] for p in chart):
+            card["chart"] = chart
+        if segments:
+            card["ring"] = {"segments": segments, "value": str(len(categories)), "label": "categories"}
+        if bars:
+            card["bars"] = bars
+        return card
+
+    if hasattr(api, "home_card"):
+        try:
+            api.home_card(home_card, title="Money", size="m", kanji="金")
+        except (TypeError, ValueError):  # Tomo before rich Home cards
+            api.home_card(home_card, title="Money")
+        api.starter("Log a purchase", "Log a purchase: ")
+        api.starter("This month's spending", "How is my spending this month compared to my budgets?")
+
     @api.router.get("/")
     def overview(request: Request):
         with db(uid(request)) as conn:

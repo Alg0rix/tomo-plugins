@@ -52,3 +52,39 @@ def setup(api):
         )
 
     api.on_turn_end(record_turn)
+
+    def _compact(n: int) -> str:
+        for limit, suffix in ((1e9, "B"), (1e6, "M"), (1e3, "k")):
+            if n >= limit:
+                return f"{n / limit:.1f}".rstrip("0").rstrip(".") + suffix
+        return str(n)
+
+    def home_card(user_id):
+        from app.services import store
+
+        def build(conn):
+            return ledger.summary_stats(conn), ledger.heatmap(conn, days=14 * 7)
+
+        summary, days = store.with_db(build)
+        today, week = summary["today"], summary["week"]
+        if not week["turns"]:
+            return {"empty": "No usage recorded yet. Token counts appear after your first chat."}
+        card = {
+            "metric": {"value": _compact(today["tokens"]), "label": "tokens today"},
+            "stats": [
+                {"label": "this week", "value": _compact(week["tokens"])},
+                {"label": "turns", "value": str(week["turns"])},
+                {"label": "chats", "value": str(week["sessions"])},
+            ],
+            "heatmap": {"values": [d["tokens"] for d in days], "label": "Last 14 weeks"},
+            "actions": [{"label": "Usage", "href": api.base_url + "/"}],
+        }
+        if summary["active_sessions_1h"]:
+            card["status"] = {"text": f"{summary['active_sessions_1h']} active", "tone": "ok"}
+        return card
+
+    if hasattr(api, "home_card"):
+        try:
+            api.home_card(home_card, title="Token usage", kanji="算")
+        except (TypeError, ValueError):  # Tomo before rich Home cards
+            api.home_card(home_card, title="Token usage")

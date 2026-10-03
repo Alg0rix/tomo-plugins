@@ -125,3 +125,12 @@ def test_official_disabled_state_survives_server_start(official):
         restored.close()
 
 
+
+
+def test_token_monitor_home_card(official):
+    from app.services.home import normalize_card
+
+    cards = {c["plugin"]: c for c in official.home_contributions("usr_admin")["cards"]}
+    assert "kanban" not in cards
+    card = normalize_card(cards["token_monitor"]["data"])
+    assert "empty" in card
