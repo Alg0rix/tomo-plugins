@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "id": "tomo-official",
+  "name": "Tomo Official",
+  "plugins": [
+    {
+      "id": "kanban",
+      "name": "Task Board",
+      "description": "Kanban board for agent-driven task workflows.",
+      "version": "0.3",
+      "sdk_version": 1,
+      "author": "Alg0rix",
+      "source": {
+        "type": "git",
+        "url": "https://github.com/Alg0rix/tomo-plugins.git",
+        "ref": "main",
+        "subdirectory": "plugins/kanban"
+      }
+    },
+    {
+      "id": "money",
+      "name": "Money",
+      "description": "Personal income and expense tracking, available to Tomo agents.",
+      "version": "0.1.0",
+      "sdk_version": 1,
+      "author": "Alg0rix",
+      "source": {
+        "type": "git",
+        "url": "https://github.com/Alg0rix/tomo-plugins.git",
+        "ref": "main",
+        "subdirectory": "plugins/money"
+      }
+    },
+    {
+      "id": "token_monitor",
+      "name": "Token Monitor",
+      "description": "Usage heatmap, agent and session leaderboards, and recent activity.",
+      "version": "0.3",
+      "sdk_version": 1,
+      "author": "Alg0rix",
+      "source": {
+        "type": "git",
+        "url": "https://github.com/Alg0rix/tomo-plugins.git",
+        "ref": "main",
+        "subdirectory": "plugins/token_monitor"
+      }
+    }
+  ]
+}

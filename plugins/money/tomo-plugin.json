@@ -1,0 +1,7 @@
+{
+  "id": "money",
+  "name": "Money",
+  "description": "Personal income and expense tracking, available to Tomo agents.",
+  "version": "0.1.0",
+  "sdk_version": 1
+}

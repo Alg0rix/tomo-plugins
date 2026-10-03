@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "Entry": {
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,31}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 2000,
+          "title": "Description",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 60,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        },
+        "sdk_version": {
+          "const": 1,
+          "title": "Sdk Version",
+          "type": "integer"
+        },
+        "author": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Author",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/GitSource"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "version",
+        "sdk_version",
+        "author",
+        "source"
+      ],
+      "title": "Entry",
+      "type": "object"
+    },
+    "GitSource": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "git",
+          "default": "git",
+          "title": "Type",
+          "type": "string"
+        },
+        "url": {
+          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?$",
+          "title": "Url",
+          "type": "string"
+        },
+        "ref": {
+          "default": "main",
+          "pattern": "^(?!.*\\.\\.)[A-Za-z0-9][A-Za-z0-9_./-]{0,200}$",
+          "title": "Ref",
+          "type": "string"
+        },
+        "subdirectory": {
+          "default": "",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).*$",
+          "title": "Subdirectory",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "title": "GitSource",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "plugins": {
+      "items": {
+        "$ref": "#/$defs/Entry"
+      },
+      "maxItems": 2000,
+      "title": "Plugins",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "plugins"
+  ],
+  "title": "Catalog",
+  "type": "object"
+}

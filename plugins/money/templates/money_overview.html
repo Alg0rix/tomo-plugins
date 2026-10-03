@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page">
+  <div class="page-head"><div><h1 class="page-title">Money</h1><p class="page-sub">Your income and expenses in IDR.</p></div></div>
+  <nav>{% for item in plugin.pages %}<a class="btn ghost sm" href="{{ item.path }}">{{ item.label }}</a> {% endfor %}</nav>
+  <div class="tile-grid" style="margin-top:1rem">
+    <article class="card" style="padding:1rem"><h2>Income</h2><p>{{ '{:,.2f}'.format(summary.income_minor / 100) }}</p></article>
+    <article class="card" style="padding:1rem"><h2>Expenses</h2><p>{{ '{:,.2f}'.format(summary.expense_minor / 100) }}</p></article>
+    <article class="card" style="padding:1rem"><h2>Balance</h2><p>{{ '{:,.2f}'.format(summary.balance_minor / 100) }}</p></article>
+  </div>
+  <p style="margin-top:1rem">Ask a Tomo agent to record an expense or summarize your spending. Enable Money tools in that agent’s Tools settings if needed.</p>
+  <a class="btn" href="/">Open Tomo chat</a>
+</div>
+{% endblock %}
