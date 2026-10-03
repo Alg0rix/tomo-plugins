@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     note TEXT NOT NULL DEFAULT '',
     day TEXT NOT NULL,
     source_id INTEGER REFERENCES sources(id) ON DELETE SET NULL,
+    method TEXT NOT NULL DEFAULT '',
     external_key TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -99,6 +100,7 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 INDEXES = """
 CREATE INDEX IF NOT EXISTS ix_txn_day ON transactions(day);
 CREATE INDEX IF NOT EXISTS ix_txn_category ON transactions(category);
+CREATE INDEX IF NOT EXISTS ix_txn_method ON transactions(method);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_txn_external
     ON transactions(external_key) WHERE external_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS ix_inbox_status ON inbox(status);
@@ -108,6 +110,7 @@ CREATE INDEX IF NOT EXISTS ix_inbox_status ON inbox(status);
 _TXN_COLUMNS = {
     "currency": "TEXT NOT NULL DEFAULT 'IDR'",
     "source_id": "INTEGER REFERENCES sources(id) ON DELETE SET NULL",
+    "method": "TEXT NOT NULL DEFAULT ''",
     "external_key": "TEXT",
     "created_at": "TEXT NOT NULL DEFAULT ''",
     "updated_at": "TEXT NOT NULL DEFAULT ''",

@@ -234,6 +234,7 @@ def llm_email_candidate(content: dict, categories: list[str]) -> dict | None:
         "merchant": merchant,
         "note": note,
         "day": day,
+        "method": ledger.clean_method(fields.get("method")),
     }
 
 
@@ -294,6 +295,7 @@ def receipt_to_candidate(data_url: str, categories: list[str]) -> dict | None:
         "merchant": merchant,
         "note": ", ".join(items)[:500] if items else merchant,
         "day": day,
+        "method": ledger.clean_method(fields.get("method")),
     }
 
 
@@ -319,6 +321,7 @@ _CSV_ALIASES = {
     "category": ("category", "kategori", "cat", "label"),
     "note": ("note", "notes", "description", "desc", "keterangan", "memo", "merchant", "payee"),
     "source": ("source", "account", "wallet", "akun", "rekening", "bank"),
+    "method": ("method", "payment", "payment method", "metode", "channel", "via"),
     "currency": ("currency", "curr", "mata uang"),
 }
 
@@ -394,6 +397,7 @@ def import_csv(conn, text: str) -> dict:
             or "Uncategorized",
             "note": (row.get(mapping.get("note") or "", "") or "").strip()[:500],
             "day": row.get(mapping.get("day") or "", "") or "",
+            "method": (row.get(mapping.get("method") or "", "") or "").strip()[:40],
             "currency": (row.get(mapping.get("currency") or "", "") or "IDR")
             .strip()[:8]
             or "IDR",

@@ -58,7 +58,7 @@
         <span class="m-ico sm">{{ (data.categories | selectattr('name', 'equalto', t.category) | first or {}).icon or '🏷️' }}</span>
         <div class="who">
           <span class="cat">{{ t.category }}</span>
-          <span class="meta">{{ t.day }}{% if t.source_name %} · {{ t.source_name }}{% endif %}{% if t.note %} · {{ t.note }}{% endif %}</span>
+          <span class="meta">{{ t.day }}{% if t.method %} · <span class="mtd">{{ t.method|upper }}</span>{% endif %}{% if t.source_name %} · {{ t.source_name }}{% endif %}{% if t.note %} · {{ t.note }}{% endif %}</span>
         </div>
         <span class="amt {{ 'in' if t.kind == 'income' }}">{{ '+' if t.kind == 'income' else '−' }}{{ fmt(t.amount_minor) }}</span>
       </div>

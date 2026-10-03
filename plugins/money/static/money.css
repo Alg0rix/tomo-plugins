@@ -68,6 +68,11 @@
   font-weight: 700;
   font-size: 16.5px;
   letter-spacing: -0.02em;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .m-rail-space {
   display: flex;
@@ -84,6 +89,16 @@
   width: 18px; height: 18px; border-radius: 6px;
   background: var(--m-pos-soft);
   display: grid; place-items: center; font-size: 11px;
+  flex-shrink: 0;
+}
+.m-rail-space > div {
+  flex: 1;
+  min-width: 0;
+}
+.m-rail-space strong, .m-rail-space span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .m-rail-space strong { display: block; font-weight: 600; font-size: 12.5px; }
 .m-rail-space span { color: var(--text-faint); font-size: 10.5px; display: block; }
@@ -138,6 +153,13 @@
   position: relative;
 }
 .m-rail-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.85; }
+.m-rail-item .lbl {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .m-rail-item:hover { color: var(--text); background: var(--surface-2); }
 .m-rail-item.active {
   color: var(--m-accent);
@@ -170,6 +192,14 @@
   width: 22px; height: 22px; border-radius: 7px;
   background: var(--m-accent-soft); color: var(--m-accent);
   display: grid; place-items: center; font-weight: 700; font-size: 10px;
+  flex-shrink: 0;
+}
+.m-rail-foot .who {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .m-content {
@@ -427,6 +457,15 @@
 .m-txn-row .who .meta { color: var(--text-faint); font-size: 11.5px; display: block; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-txn-row .amt { font-family: var(--font-mono); font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .m-txn-row .amt.in { color: var(--m-pos); }
+.mtd { text-transform: uppercase; letter-spacing: 0.04em; color: var(--m-accent); font-weight: 600; }
+.m-method-ico {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--m-accent);
+  background: var(--m-accent-soft);
+  border-radius: 8px;
+}
 
 .m-budget-mini { display: flex; flex-direction: column; gap: 12px; }
 .m-budget-row { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }

@@ -194,6 +194,7 @@ def test_legacy_ledger_migration_preserves_rows(tmp_path):
     row = mods.store.one(conn, "SELECT * FROM transactions WHERE id=1")
     assert row["amount_minor"] == 99900 and row["category"] == "Food"
     assert row["currency"] == "IDR" and row["day"] == "2025-01-05"
+    assert row["method"] == ""
     assert mods.store.one(conn, "SELECT id FROM sources LIMIT 1")
     conn.close()
 
@@ -269,13 +270,15 @@ def test_csv_import_and_email_parsing(tmp_path):
     mods = _load_package()
     conn = mods.store.connect(tmp_path)
     csv_text = (
-        "date,type,amount,category,note\n"
-        "2026-02-01,expense,15000,Food,Lunch\n"
-        "02/02/2026,income,500000,Salary,Payday\n"
-        "2026-02-03,debit,7.500,Coffee,Kopi\n"
+        "date,type,amount,category,note,method\n"
+        "2026-02-01,expense,15000,Food,Lunch,qris\n"
+        "02/02/2026,income,500000,Salary,Payday,transfer\n"
+        "2026-02-03,debit,7.500,Coffee,Kopi,cash\n"
     )
     result = mods.capture.import_csv(conn, csv_text)
     assert result["imported"] == 3 and result["skipped"] == 0
+    row = mods.store.one(conn, "SELECT method FROM transactions WHERE note='Lunch'")
+    assert row["method"] == "qris"
     again = mods.capture.import_csv(conn, csv_text)
     assert again["duplicates"] == 3
 
@@ -409,6 +412,21 @@ def test_money_toolset_crud_and_reports(manager):
         run("update_transaction", {"id": txn["id"], "amount": "90"})
         report = run("report", {})
         assert report["totals"]["expense_minor"] == 9000
+        m_txn = run(
+            "add_transaction",
+            {"kind": "expense", "amount": "10", "category": "Food",
+             "method": " QRIS "},
+        )
+        qr = run("list_transactions", {"method": "qris"})
+        assert [t["id"] for t in qr] == [m_txn["id"]]
+        methods = {r["method"]: r for r in run("report", {})["methods"]}
+        assert methods["qris"]["total"] == 1000
+        assert methods["other"]["total"] == 9000
+        run(
+            "update_transaction",
+            {"id": m_txn["id"], "method": "debit card"},
+        )
+        assert run("list_transactions", {"method": "debit card"})[0]["id"] == m_txn["id"]
         run("set_budget", {"category": "Food", "amount": "50"})
         assert run("list_budgets", {})[0]["over"] is True
         inbox = run("add_transaction", {

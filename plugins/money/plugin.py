@@ -98,6 +98,7 @@ def setup(api):
                 transactions=ledger.list_transactions(conn, limit=300),
                 categories=ledger.list_categories(conn),
                 sources=ledger.list_sources(conn),
+                methods=ledger.list_methods(conn),
                 today=date.today().isoformat(),
             )
 
@@ -166,6 +167,7 @@ def setup(api):
         kind: str = "",
         category: str = "",
         source_id: str = "",
+        method: str = "",
         q: str = "",
         month: str = "",
         start: str = "",
@@ -180,6 +182,7 @@ def setup(api):
                     kind=kind,
                     category=category,
                     source_id=source_id or None,
+                    method=method,
                     q=q,
                     month=month,
                     start=start,
@@ -206,6 +209,7 @@ def setup(api):
         note: str = Form(""),
         day: str = Form(""),
         source_id: str = Form(""),
+        method: str = Form(""),
         currency: str = Form("IDR"),
     ):
         _guard_origin(request)
@@ -220,6 +224,7 @@ def setup(api):
                         "note": note,
                         "day": day,
                         "source_id": source_id,
+                        "method": method,
                         "currency": currency,
                     },
                 )
@@ -565,6 +570,11 @@ def setup(api):
                 "currency": {"type": "string", "description": "ISO code, default IDR"},
                 "source": {"type": "string", "description": "Spending source name"},
                 "source_id": {"type": "integer"},
+                "method": {
+                    "type": "string",
+                    "description": "Payment method/rail, e.g. cash, qris, debit, "
+                    "credit, transfer, e-wallet — inferred from emails/receipts",
+                },
                 "external_key": {"type": "string"},
             },
             "required": ["kind", "amount"],
@@ -590,7 +600,7 @@ def setup(api):
     _tool(
         "update_transaction",
         "Update fields of an existing transaction by id. Any of kind, amount, "
-        "category, note, day, currency, source/source_id may change.",
+        "category, note, day, currency, source/source_id, method may change.",
         {
             "type": "object",
             "properties": {
@@ -603,6 +613,7 @@ def setup(api):
                 "currency": {"type": "string"},
                 "source": {"type": "string"},
                 "source_id": {"type": "integer"},
+                "method": {"type": "string"},
             },
             "required": ["id"],
         },
@@ -621,14 +632,15 @@ def setup(api):
     _tool(
         "list_transactions",
         "List the user's money transactions (amounts are minor units, /100). "
-        "Optional filters: kind, category, source_id, q (note/category text), "
-        "month (YYYY-MM), start/end day, limit, offset.",
+        "Optional filters: kind, category, source_id, method, q (note/category "
+        "text), month (YYYY-MM), start/end day (inclusive), limit, offset.",
         {
             "type": "object",
             "properties": {
                 "kind": {"type": "string", "enum": ["income", "expense"]},
                 "category": {"type": "string"},
                 "source_id": {"type": "integer"},
+                "method": {"type": "string"},
                 "q": {"type": "string"},
                 "month": {"type": "string"},
                 "start": {"type": "string"},
@@ -643,6 +655,7 @@ def setup(api):
                 kind=a.get("kind", ""),
                 category=a.get("category", ""),
                 source_id=a.get("source_id"),
+                method=a.get("method", ""),
                 q=a.get("q", ""),
                 month=a.get("month", ""),
                 start=a.get("start", ""),
@@ -771,7 +784,7 @@ def setup(api):
     _tool(
         "confirm_inbox",
         "Confirm an inbox item into the ledger, optionally overriding fields "
-        "(amount, category, day, kind, note, source).",
+        "(amount, category, day, kind, note, source, method).",
         {
             "type": "object",
             "properties": {
@@ -782,6 +795,7 @@ def setup(api):
                 "day": {"type": "string"},
                 "note": {"type": "string"},
                 "source": {"type": "string"},
+                "method": {"type": "string"},
             },
             "required": ["id"],
         },

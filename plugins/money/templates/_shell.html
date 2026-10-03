@@ -25,23 +25,23 @@
       <div class="m-rail-label">Money</div>
       <a class="m-rail-item {{ 'active' if active == 'overview.html' }}" href="{{ plugin.base_url }}/">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-        Overview
+        <span class="lbl">Overview</span>
       </a>
       <a class="m-rail-item {{ 'active' if active == 'transactions.html' }}" href="{{ plugin.base_url }}/transactions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
-        Transactions
+        <span class="lbl">Transactions</span>
       </a>
       <a class="m-rail-item {{ 'active' if active == 'reports.html' }}" href="{{ plugin.base_url }}/reports">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
-        Reports
+        <span class="lbl">Reports</span>
       </a>
       <a class="m-rail-item {{ 'active' if active == 'budgets.html' }}" href="{{ plugin.base_url }}/budgets">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        Budgets
+        <span class="lbl">Budgets</span>
       </a>
       <a class="m-rail-item {{ 'active' if active == 'sources.html' }}" href="{{ plugin.base_url }}/sources">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-        Spending sources
+        <span class="lbl">Spending sources</span>
       </a>
     </nav>
 
@@ -49,11 +49,11 @@
       <div class="m-rail-label">Capture</div>
       <a class="m-rail-item {{ 'active' if active == 'imports.html' }}" href="{{ plugin.base_url }}/imports">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        Imports
+        <span class="lbl">Imports</span>
       </a>
       <a class="m-rail-item {{ 'active' if active == 'inbox.html' }}" href="{{ plugin.base_url }}/inbox">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1Z"/></svg>
-        Inbox
+        <span class="lbl">Inbox</span>
         {% if inbox_count %}<span class="badge">{{ inbox_count }}</span>{% endif %}
       </a>
     </nav>
@@ -62,13 +62,13 @@
       <div class="m-rail-label">Connected</div>
       <a class="m-rail-item {{ 'active' if active == 'apps.html' }}" href="{{ plugin.base_url }}/apps">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
-        Apps
+        <span class="lbl">Apps</span>
       </a>
     </nav>
 
     <div class="m-rail-foot">
       <span class="avatar">{{ (current_username or "M")[0]|upper }}</span>
-      <span>{{ current_username or "You" }} · Money</span>
+      <span class="who">{{ current_username or "You" }} · Money</span>
     </div>
   </aside>
 
@@ -103,6 +103,12 @@
             <option value="">No source</option>
             {% for s in (sources or []) if s.id %}<option value="{{ s.id }}">{{ s.icon }} {{ s.name }}</option>{% endfor %}
           </select>
+        </label>
+        <label class="m-field"><span>Method</span>
+          <input class="m-input" name="method" list="moneyMethodList" maxlength="40" placeholder="qris, cash, debit…" autocomplete="off">
+          <datalist id="moneyMethodList">
+            <option value="cash"></option><option value="qris"></option><option value="debit"></option><option value="credit"></option><option value="transfer"></option><option value="e-wallet"></option><option value="other"></option>
+          </datalist>
         </label>
         <label class="m-field"><span>Note</span>
           <input class="m-input" name="note" maxlength="500" placeholder="Optional note">

@@ -70,6 +70,21 @@
       <div class="m-donut-wrap" id="donutHost"></div>
       <div id="catList"></div>
     </section>
+
+    <section class="m-card m-section" id="methodCard" {% if not data.methods %}hidden{% endif %}>
+      <h2 class="m-section-h">By payment method</h2>
+      <p class="m-section-sub">Tap a row for its transactions</p>
+      <div id="methodList">
+        {% for m in data.methods %}
+        <a class="m-cat-row" href="{{ plugin.base_url }}/transactions?method={{ m.method }}{% if data.label | length == 7 %}&month={{ data.label }}{% else %}&start={{ data.start }}&end={{ data.end_inclusive }}{% endif %}">
+          <span class="m-ico sm m-method-ico">{{ m.method[:1]|upper }}</span>
+          <span style="flex:1;min-width:0"><span class="nm mtd">{{ m.method }}</span>
+          <span class="perday" style="display:block">{{ m.share }}% · {{ m.txns }} txns</span></span>
+          <span class="amt">{{ fmt(m.total) }}</span><span class="chev">›</span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
   </div>
 </div>
 </div>

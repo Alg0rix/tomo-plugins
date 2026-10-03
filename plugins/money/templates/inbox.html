@@ -27,6 +27,7 @@
       <div class="meta">
         {% if it.day %}<span>📅 {{ it.day }}</span>{% endif %}
         {% if it.category %}<span>🏷️ {{ it.category }}</span>{% endif %}
+        {% if it.method %}<span>💳 {{ it.method|upper }}</span>{% endif %}
         {% if it.confidence is not none %}<span>confidence {{ (it.confidence * 100) | int }}%</span>{% endif %}
       </div>
       {% if it.snippet %}<div class="snippet">{{ it.snippet }}</div>{% endif %}
@@ -34,6 +35,7 @@
         <input class="m-input" name="amount" type="number" step="0.01" placeholder="Amount">
         <input class="m-input" name="category" list="moneyCatList" placeholder="Category" value="{{ it.category or '' }}">
         <input class="m-input" name="day" type="date" value="{{ it.day or '' }}">
+        <input class="m-input" name="method" list="moneyMethodList" maxlength="40" placeholder="Method (qris, cash…)" value="{{ it.method or '' }}">
         <input class="m-input" name="note" placeholder="Note" value="{{ it.title }}">
       </div>
     </div>

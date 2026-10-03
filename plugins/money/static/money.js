@@ -78,10 +78,12 @@
       txnForm.elements.amount.value = (Math.abs(txn.amount_minor) / 100).toString();
       txnForm.elements.category.value = txn.category || "";
       txnForm.elements.note.value = txn.note || "";
+      txnForm.elements.method.value = txn.method || "";
       txnForm.elements.source_id.value = txn.source_id || "";
       setKind(txn.kind || "expense");
     } else {
       txnForm.elements.source_id.value = "";
+      txnForm.elements.method.value = "";
       setKind("expense");
     }
     modal.classList.add("open");
@@ -111,6 +113,7 @@
         note: f.note.value,
         day: f.day.value,
         source_id: f.source_id.value || null,
+        method: f.method.value || "",
       };
       var save = editingId
         ? post(baseUrl() + "/api/transactions/" + editingId, payload, "PATCH")
@@ -168,14 +171,16 @@
   function txnRow(r) {
     var inClass = r.kind === "income" ? " in" : "";
     var sign = r.kind === "income" ? "+" : "−";
-    var meta = [r.day]
-      .concat(r.source_name ? [r.source_name] : [], r.note ? [r.note] : [])
-      .join(" · ");
+    var parts = [esc(r.day)];
+    if (r.method) parts.push('<span class="mtd">' + esc(r.method.toUpperCase()) + "</span>");
+    if (r.source_name) parts.push(esc(r.source_name));
+    if (r.note) parts.push(esc(r.note));
+    var meta = parts.join(" · ");
     return (
       '<div class="m-txn-row" data-id="' + r.id + '">' +
         '<div class="m-txn-row who">' +
           '<span class="cat">' + esc(r.category) + '</span>' +
-          '<span class="meta">' + esc(meta) + '</span>' +
+          '<span class="meta">' + meta + '</span>' +
         '</div>' +
         '<div class="m-txn-actions">' +
           '<button type="button" class="edit" title="Edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>' +
@@ -216,7 +221,7 @@
     var filters = document.getElementById("txnFilters");
     var seeded = false;
     if (filters) {
-      ["q", "kind", "category", "source_id", "month"].forEach(function (name) {
+      ["q", "kind", "category", "source_id", "method", "month"].forEach(function (name) {
         var value = urlParams.get(name);
         if (value && filters.elements[name]) {
           filters.elements[name].value = value;
@@ -233,6 +238,7 @@
         if (filters.elements.kind.value) params.set("kind", filters.elements.kind.value);
         if (filters.elements.category.value) params.set("category", filters.elements.category.value);
         if (filters.elements.source_id.value) params.set("source_id", filters.elements.source_id.value);
+        if (filters.elements.method && filters.elements.method.value) params.set("method", filters.elements.method.value);
         if (filters.elements.month.value) params.set("month", filters.elements.month.value);
       }
       rangeParams.forEach(function (k) { params.set(k, urlParams.get(k)); });
@@ -517,18 +523,21 @@
       var donutHost = document.getElementById("donutHost");
       var catHost = document.getElementById("catList");
       var cats = d.categories || [];
+      var periodQS = String(d.label).length === 7
+        ? "month=" + encodeURIComponent(d.label)
+        : "start=" + d.start + "&end=" + encodeURIComponent(d.end_inclusive || "");
       if (cats.length) {
         renderDonut(donutHost, cats, d.totals.expense_minor, d.days_elapsed, function (c) {
           window.location.href =
             baseUrl() + "/transactions?category=" + encodeURIComponent(c.category) +
-            "&month=" + encodeURIComponent(d.label);
+            "&" + periodQS;
         });
         catHost.innerHTML = cats
           .map(function (c, i) {
             return (
               '<a class="m-cat-row" data-i="' + i + '" href="' + baseUrl() +
               "/transactions?category=" + encodeURIComponent(c.category) +
-              "&month=" + encodeURIComponent(d.label) + '">' +
+              "&" + periodQS + '">' +
               '<span class="m-ico sm" style="background:color-mix(in srgb,' + esc(c.color) + " 18%,var(--surface-3))\">" +
               esc(c.icon || "🏷️") + "</span>" +
               '<span style="flex:1;min-width:0"><span class="nm">' + esc(c.category) + "</span>" +
@@ -541,6 +550,27 @@
       } else {
         donutHost.innerHTML = '<div class="m-empty"><span class="glyph">🍩</span>No spending this period.</div>';
         catHost.innerHTML = "";
+      }
+
+      // Payment-method breakdown
+      var methodCard = document.getElementById("methodCard");
+      var methodHost = document.getElementById("methodList");
+      var methods = d.methods || [];
+      if (methodCard && methodHost) {
+        methodCard.hidden = !methods.length;
+        methodHost.innerHTML = methods
+          .map(function (m) {
+            return (
+              '<a class="m-cat-row" href="' + baseUrl() + "/transactions?method=" +
+              encodeURIComponent(m.method) + "&" + periodQS + '">' +
+              '<span class="m-ico sm m-method-ico">' + esc(m.method.slice(0, 1).toUpperCase()) + "</span>" +
+              '<span style="flex:1;min-width:0"><span class="nm mtd">' + esc(m.method) + "</span>" +
+              '<span class="perday" style="display:block">' + m.share + "% · " +
+              m.txns + " txns</span></span>" +
+              '<span class="amt">' + fmtRp(m.total) + '</span><span class="chev">›</span></a>'
+            );
+          })
+          .join("");
       }
 
       renderCalendar(document.getElementById("calGrid"), d);

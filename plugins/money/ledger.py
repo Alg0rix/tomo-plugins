@@ -83,6 +83,16 @@ def _clean_category(conn: sqlite3.Connection, name: str, kind: str) -> str:
     return existing["name"] if existing else name
 
 
+PAYMENT_METHODS = [
+    "cash", "qris", "debit", "credit", "transfer", "e-wallet", "other",
+]
+
+
+def clean_method(value) -> str:
+    """Normalize a payment-method label: lowercase, collapsed spaces, ≤40 chars."""
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())[:40]
+
+
 # --- Transactions -----------------------------------------------------------
 
 def add_transaction(conn: sqlite3.Connection, fields: dict) -> dict:
@@ -94,6 +104,7 @@ def add_transaction(conn: sqlite3.Connection, fields: dict) -> dict:
     day = parse_day(fields.get("day"))
     note = str(fields.get("note") or "")[:500]
     currency = (str(fields.get("currency") or "IDR").strip() or "IDR")[:8].upper()
+    method = clean_method(fields.get("method"))
     source_id = fields.get("source_id")
     if source_id in ("", 0, "0", "none", "null"):
         source_id = None
@@ -111,8 +122,11 @@ def add_transaction(conn: sqlite3.Connection, fields: dict) -> dict:
         return {"id": existing["id"], "saved": True, "duplicate": True}
     cur = conn.execute(
         "INSERT INTO transactions (kind, amount_minor, currency, category, note, day,"
-        " source_id, external_key) VALUES (?,?,?,?,?,?,?,?)",
-        (kind, amount_minor, currency, category, note, day, source_id, external_key),
+        " source_id, method, external_key) VALUES (?,?,?,?,?,?,?,?,?)",
+        (
+            kind, amount_minor, currency, category, note, day,
+            source_id, method, external_key,
+        ),
     )
     conn.commit()
     return {"id": cur.lastrowid, "saved": True, "duplicate": False}
@@ -136,7 +150,7 @@ def update_transaction(conn: sqlite3.Connection, txn_id: int, fields: dict) -> d
         source_id = None
     conn.execute(
         "UPDATE transactions SET kind=?, amount_minor=?, currency=?, category=?,"
-        " note=?, day=?, source_id=?, updated_at=datetime('now') WHERE id=?",
+        " note=?, day=?, source_id=?, method=?, updated_at=datetime('now') WHERE id=?",
         (
             kind,
             parse_amount_minor(merged["amount"]),
@@ -145,6 +159,7 @@ def update_transaction(conn: sqlite3.Connection, txn_id: int, fields: dict) -> d
             str(merged.get("note") or "")[:500],
             parse_day(merged.get("day")),
             source_id,
+            clean_method(merged.get("method")),
             txn_id,
         ),
     )
@@ -166,6 +181,7 @@ def list_transactions(
     kind: str = "",
     category: str = "",
     source_id=None,
+    method: str = "",
     q: str = "",
     month: str = "",
     start: str = "",
@@ -190,6 +206,9 @@ def list_transactions(
         except (TypeError, ValueError):
             params.append(-1)
         sql += " AND t.source_id=?"
+    if method:
+        sql += " AND t.method=?"
+        params.append(clean_method(method))
     if q:
         sql += " AND (t.note LIKE ? OR t.category LIKE ?)"
         like = f"%{q.strip()}%"
@@ -203,7 +222,7 @@ def list_transactions(
             sql += " AND t.day>=?"
             params.append(parse_day(start))
         if end:
-            sql += " AND t.day<?"
+            sql += " AND t.day<=?"
             params.append(parse_day(end))
     sql += " ORDER BY t.day DESC, t.id DESC LIMIT ? OFFSET ?"
     params += [min(max(int(limit or 200), 1), 1000), max(int(offset or 0), 0)]
@@ -466,6 +485,33 @@ def by_category(conn: sqlite3.Connection, start: str, end: str, kind="expense") 
     return rows
 
 
+def by_method(conn: sqlite3.Connection, start: str, end: str, kind="expense") -> list[dict]:
+    """Spending grouped by payment method; untagged rows fall under 'other'."""
+    rows = store.rows(
+        conn,
+        "SELECT CASE WHEN method='' THEN 'other' ELSE method END AS method,"
+        " SUM(amount_minor) AS total, COUNT(*) AS txns"
+        " FROM transactions WHERE kind=? AND day>=? AND day<?"
+        " GROUP BY 1 ORDER BY total DESC",
+        (kind, start, end),
+    )
+    grand = sum(int(r["total"]) for r in rows) or 1
+    for row in rows:
+        row["total"] = int(row["total"])
+        row["share"] = round(row["total"] * 100 / grand, 1)
+    return rows
+
+
+def list_methods(conn: sqlite3.Connection) -> list[str]:
+    """Distinct payment methods actually used, for filter dropdowns."""
+    return [
+        row[0]
+        for row in conn.execute(
+            "SELECT DISTINCT method FROM transactions WHERE method<>'' ORDER BY 1"
+        )
+    ]
+
+
 def daily_series(conn: sqlite3.Connection, start: str, end: str) -> list[dict]:
     per_day = {
         row["day"]: row
@@ -536,6 +582,7 @@ def report(conn: sqlite3.Connection, *, month: str = "", year: str = "") -> dict
         "prev_label": prev_label,
         "start": start,
         "end": end,
+        "end_inclusive": (date.fromisoformat(end) - timedelta(days=1)).isoformat(),
         "days_elapsed": days_elapsed,
         "totals": current,
         "previous": previous,
@@ -543,6 +590,7 @@ def report(conn: sqlite3.Connection, *, month: str = "", year: str = "") -> dict
         "avg_daily_minor": current["expense_minor"] // days_elapsed,
         "categories": categories,
         "income_categories": income_categories,
+        "methods": by_method(conn, start, end),
         "daily": daily,
         "cumulative": cumulative,
         "prev_cumulative": prev_cumulative,
@@ -614,6 +662,7 @@ def list_inbox(conn: sqlite3.Connection, status: str = "pending") -> list[dict]:
         item["amount_minor"] = payload.get("amount_minor")
         item["day"] = payload.get("day")
         item["category"] = payload.get("category")
+        item["method"] = payload.get("method") or ""
         item["kind"] = payload.get("kind") or "expense"
         item["confidence"] = payload.get("confidence")
         item["snippet"] = provenance.get("snippet") or payload.get("note") or ""

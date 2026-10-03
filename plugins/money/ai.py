@@ -52,7 +52,9 @@ def extract_transaction(text: str, categories: list[str]) -> dict | None:
             " only: {\"kind\": \"expense\"|\"income\", \"amount\": number,"
             " \"currency\": \"IDR\"|ISO code, \"category\": one of [" + cats +
             "] or a short new name, \"day\": \"YYYY-MM-DD\" or null,"
-            " \"merchant\": string or null, \"note\": short string}.\n\nText:\n"
+            " \"merchant\": string or null, \"note\": short string,"
+            " \"method\": short lowercase payment rail or null"
+            " (e.g. qris, cash, debit, credit, transfer, e-wallet)}.\n\nText:\n"
             + text[:6000]
         )
         resp = await client.complete(
@@ -114,7 +116,9 @@ def describe_receipt(data_url: str, categories: list[str]) -> dict | None:
             " reply with JSON only: {\"merchant\": string, \"amount\": number"
             " (the grand total paid), \"currency\": \"IDR\"|ISO code,"
             " \"day\": \"YYYY-MM-DD\" or null, \"category\": one of [" + cats +
-            "] or a short new name, \"items\": [short item strings up to 6]}."
+            "] or a short new name, \"items\": [short item strings up to 6],"
+            " \"method\": short lowercase payment rail or null"
+            " (e.g. qris, cash, debit, credit)}."
         )
         return await analyze_image_data_url(None, data_url, prompt)
 

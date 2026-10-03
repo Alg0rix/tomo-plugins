@@ -7,15 +7,15 @@ Use Tomo's Money plugin for the current user's ledger. All data is private to th
 
 **Recording transactions**
 
-- `plugin__money__add_transaction` records income or an expense. `kind` is `income` or `expense`, `amount` is a positive decimal string in the transaction currency (IDR by default), `category`/`note`/`day` (YYYY-MM-DD)/`source` (name) or `source_id`/`external_key` (dedupe key) are optional.
+- `plugin__money__add_transaction` records income or an expense. `kind` is `income` or `expense`, `amount` is a positive decimal string in the transaction currency (IDR by default), `category`/`note`/`day` (YYYY-MM-DD)/`source` (name) or `source_id`/`method` (payment rail: cash, qris, debit, credit, transfer, e-wallet…)/`external_key` (dedupe key) are optional.
 - `plugin__money__update_transaction` and `plugin__money__delete_transaction` modify entries by id.
 - When an amount, category, or date is ambiguous, confirm with the user before writing. Report the actual saved result.
 
 **Reading and reporting**
 
 - `plugin__money__summary` — this month's income/expense and all-time balance.
-- `plugin__money__list_transactions` — filtered history (kind, category, source_id, q, month, start/end, limit).
-- `plugin__money__report` — full report for a month (YYYY-MM) or year (YYYY): totals, previous-period delta, per-category shares, daily series, cumulative trend, and budget status.
+- `plugin__money__list_transactions` — filtered history (kind, category, source_id, method, q, month, start/end, limit).
+- `plugin__money__report` — full report for a month (YYYY-MM) or year (YYYY): totals, previous-period delta, per-category shares, per-method totals, daily series, cumulative trend, and budget status.
 - Returned amounts are integer minor units — divide by 100 for display. Inputs take major units, not minor units.
 
 **Budgets, sources, categories**
