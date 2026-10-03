@@ -1,4 +1,4 @@
-"""Example: two pages and user-scoped ledger tools, using Tomo's agent core."""
+"""Money pages and user-scoped ledger tools using Tomo's agent core."""
 
 from datetime import date
 from decimal import Decimal

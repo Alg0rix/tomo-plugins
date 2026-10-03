@@ -2,7 +2,7 @@
   "id": "kanban",
   "name": "Task Board",
   "description": "Kanban board for agent-driven task workflows.",
-  "version": "0.3",
+  "version": "0.3.1",
   "sdk_version": 1,
   "icon": "columns-3"
 }

@@ -7,7 +7,7 @@
       "id": "kanban",
       "name": "Task Board",
       "description": "Kanban board for agent-driven task workflows.",
-      "version": "0.3",
+      "version": "0.3.1",
       "sdk_version": 1,
       "author": "Alg0rix",
       "source": {
@@ -22,7 +22,7 @@
       "id": "money",
       "name": "Money",
       "description": "Personal income and expense tracking, available to Tomo agents.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "sdk_version": 1,
       "author": "Alg0rix",
       "source": {
@@ -37,7 +37,7 @@
       "id": "token_monitor",
       "name": "Token Monitor",
       "description": "Usage heatmap, agent and session leaderboards, and recent activity.",
-      "version": "0.3",
+      "version": "0.3.1",
       "sdk_version": 1,
       "author": "Alg0rix",
       "source": {

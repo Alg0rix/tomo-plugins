@@ -2,7 +2,7 @@
   "id": "token_monitor",
   "name": "Token Monitor",
   "description": "Usage heatmap, agent and session leaderboards, and recent activity.",
-  "version": "0.3",
+  "version": "0.3.1",
   "sdk_version": 1,
   "icon": "chart-column"
 }

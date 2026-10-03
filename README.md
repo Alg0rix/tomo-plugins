@@ -1,14 +1,14 @@
 # Tomo Official Plugins
 
 The home for official Tomo plugins. Each directory under `plugins/` is a complete
-Tomo SDK v1 package with `tomo-plugin.json`, `plugin.py`, and optional templates
-and static assets.
+Tomo SDK v1 package with `tomo-plugin.json`, `plugin.py`, and optional templates,
+static assets, and usage skills.
 
 | Plugin | Purpose |
 |---|---|
 | Money | Income/expense ledger, overview and transactions pages, and agent tools |
-| Token Monitor | Usage analytics and turn/token history; bundled with Tomo |
-| Task Board | Current Kanban page placeholder; bundled with Tomo |
+| Token Monitor | Usage analytics and turn/token history |
+| Task Board | Current Kanban page placeholder |
 
 ## Install
 
@@ -28,9 +28,9 @@ tomo plugins install https://github.com/Alg0rix/tomo-plugins.git --subdirectory 
 tomo plugins enable money
 ```
 
-Token Monitor and Task Board ship with Tomo; manage their bundled copies through
-Plugins rather than installing a second copy. Official sources are maintained
-here; shipped snapshots stay available offline.
+All official plugin source and feature tests live here. Tomo core provides the
+runtime and SDK. Install the plugins you want from the official catalog;
+installed source packages remain available offline.
 
 ## Catalog
 
@@ -71,3 +71,11 @@ PYTHONPATH=/path/to/tomo /path/to/tomo/.venv/bin/pytest -n 0 tests -q
 ```
 
 Tests use temporary Tomo home, work, and database directories.
+
+## Usage skills
+
+Each plugin includes a domain `skills/<name>/SKILL.md`. Tomo discovers these
+read-only skills while the plugin is enabled and refreshes entrypoints on reload.
+Money contributes `plugin__money__money-management`, Token Monitor contributes
+`plugin__token_monitor__token-usage`, and Task Board contributes
+`plugin__kanban__task-board`. Tool permissions are configured separately.
