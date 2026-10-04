@@ -141,13 +141,46 @@ def parse_email_candidate(
     }
 
 
-def html_to_text(html: str) -> str:
-    try:
-        from bs4 import BeautifulSoup
+_INVISIBLE = re.compile(
+    "[\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064"
+    "\ufeff\ufffe\u0000-\u0008\u000b\u000c\u000e-\u001f]"
+)
 
-        return unescape(BeautifulSoup(html, "html.parser").get_text("\n"))
+
+def clean_text(text: str) -> str:
+    """Strip invisible characters and whitespace noise from mail bodies."""
+    if not text:
+        return ""
+    text = _INVISIBLE.sub("", text)
+    lines = [re.sub(r"[ \t ]+", " ", line).strip() for line in text.splitlines()]
+    cleaned: list[str] = []
+    for line in lines:
+        if line:
+            cleaned.append(line)
+        elif not cleaned or cleaned[-1]:
+            cleaned.append("")
+    return "\n".join(cleaned).strip("\n")
+
+
+def html_to_text(html: str) -> str:
+    """Render HTML the way a browser would: real whitespace collapses to a
+    single space, only <br> becomes a line break."""
+    try:
+        from bs4 import BeautifulSoup, Comment
+
+        # Mark <br> before parsing so the marker survives whitespace collapsing.
+        marked = re.sub(r"<br\s*/?>", "\ue000", html or "", flags=re.IGNORECASE)
+        soup = BeautifulSoup(marked, "html.parser")
+        for node in soup(["script", "style", "head"]):
+            node.decompose()
+        for node in soup.find_all(string=lambda s: isinstance(s, Comment)):
+            node.extract()
+        text = soup.get_text("")
+        text = re.sub(r"[\s\u00a0]+", " ", text)  # source formatting -> spaces
+        text = text.replace("\ue000", "\n")  # only <br> breaks lines
     except Exception:
-        return unescape(re.sub(r"<[^>]+>", " ", html or ""))
+        text = unescape(re.sub(r"<[^>]+>", " ", html or ""))
+    return clean_text(unescape(text))
 
 
 def gmail_message_content(message: dict) -> dict:
@@ -156,7 +189,8 @@ def gmail_message_content(message: dict) -> dict:
         h.get("name", "").lower(): h.get("value", "")
         for h in (message.get("payload", {}).get("headers") or [])
     }
-    body_parts: list[str] = []
+    plain_parts: list[str] = []
+    html_parts: list[str] = []
 
     def walk(part):
         mime = (part.get("mimeType") or "").lower()
@@ -169,13 +203,16 @@ def gmail_message_content(message: dict) -> dict:
             except Exception:
                 decoded = ""
             if decoded:
-                body_parts.append(
-                    decoded if mime == "text/plain" else html_to_text(decoded)
-                )
+                (plain_parts if mime == "text/plain" else html_parts).append(decoded)
         for child in part.get("parts") or []:
             walk(child)
 
     walk(message.get("payload") or {})
+    # One rendition only: multipart mails carry the same content twice.
+    if plain_parts:
+        body = clean_text("\n".join(plain_parts))
+    else:
+        body = clean_text("\n".join(html_to_text(h) for h in html_parts))
     when = None
     internal = message.get("internalDate")
     if internal:
@@ -191,7 +228,7 @@ def gmail_message_content(message: dict) -> dict:
         "from": headers.get("from", ""),
         "subject": headers.get("subject", "") or (message.get("snippet") or ""),
         "snippet": message.get("snippet") or "",
-        "body": "\n".join(body_parts),
+        "body": body,
         "when": when,
     }
 
