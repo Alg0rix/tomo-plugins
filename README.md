@@ -6,7 +6,7 @@ static assets, and usage skills.
 
 | Plugin | Purpose |
 |---|---|
-| Money | Income/expense ledger, overview and transactions pages, and agent tools |
+| Money | Ledger, budgets, reports, durable Gmail imports, Sheets exports, Calendar reminders and agent tools |
 | Token Monitor | Usage analytics and turn/token history |
 | Task Board | Current Kanban page placeholder |
 
@@ -79,3 +79,41 @@ read-only skills while the plugin is enabled and refreshes entrypoints on reload
 Money contributes `plugin__money__money-management`, Token Monitor contributes
 `plugin__token_monitor__token-usage`, and Task Board contributes
 `plugin__kanban__task-board`. Tool permissions are configured separately.
+
+## Money connected apps (1.3.0)
+
+Money's Connected apps page supports Gmail imports with 7-day, 1/3/6/12-month
+lookbacks, persistent progress, cancel/retry and optional 30-minute checks. Imports
+run in Tomo's lifecycle-managed worker, outside web requests, and always queue
+candidates for review. Tomo must support `api.background_task`; update Tomo before
+installing this version on an older runtime. Jobs resume after restart or reload;
+interrupted in-flight units are recovered after a 120-second lease expires.
+
+Create a Google OAuth **web application** client and enable Gmail, Sheets and
+Calendar APIs. The page displays all three full callback URLs. Save the client ID
+and secret, then consent separately to Gmail read-only, Sheets spreadsheet access,
+or Calendar owned-event access. Secrets and tokens use Tomo's at-rest encryption.
+
+For Sheets, enter the ID from a spreadsheet you can edit. Export owns the
+`Tomo Money` tab and atomically replaces its cell values with up to 10,000 recorded
+transactions, including removal of obsolete rows. It uses typed values so notes
+beginning with `=` stay text. The export does not modify other tabs.
+
+For Calendar, enter `primary` or an owned calendar ID, then add bill reminders.
+Bills support one-off/weekly/monthly/yearly recurrence, an IANA timezone, and
+0–28 days advance notice. Updates and deletions sync through idempotent event IDs.
+Calendar recurrence follows RRULE semantics: the 31st skips short months and
+February 29 yearly bills occur in leap years. Reminders never create ledger entries.
+Changing a destination leaves previously exported copies in the old destination.
+Disconnect only removes local tokens and cancels local work; revoke the app from
+your Google account to remove its Google permissions entirely.
+
+Each user has a private SQLite queue. Work uses leases and fencing, retries
+transient errors with exponential backoff, pauses automatic checks after terminal
+failure, and skips disabled users. Processed email bodies are not persisted.
+Google account connections are not exercised by the test suite; complete a live
+OAuth and sync smoke test in your deployment before using automatic exports.
+
+Validation: `PYTHONPATH=/path/to/tomo python -m pytest tests -q` and
+`python scripts/validate.py`. Provider tests replace only remote HTTP boundaries;
+SQLite job state, pagination, user isolation and loader/routes run for real.

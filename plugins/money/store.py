@@ -143,7 +143,7 @@ DEFAULT_SOURCES = [
 
 def connect(data_dir: Path) -> sqlite3.Connection:
     data_dir.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(data_dir / _DB_NAME)
+    conn = sqlite3.connect(data_dir / _DB_NAME, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -158,7 +158,12 @@ def connect(data_dir: Path) -> sqlite3.Connection:
 
 
 def migrate(conn: sqlite3.Connection) -> None:
+    from .jobs import SCHEMA as JOB_SCHEMA
+    from .google_apps import SCHEMA as GOOGLE_SCHEMA
+
     conn.executescript(SCHEMA)
+    conn.executescript(JOB_SCHEMA)
+    conn.executescript(GOOGLE_SCHEMA)
     existing = {row[1] for row in conn.execute("PRAGMA table_info(transactions)")}
     for column, ddl in _TXN_COLUMNS.items():
         if column not in existing:

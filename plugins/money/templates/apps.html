@@ -1,73 +1,107 @@
 {% extends "_shell.html" %}
 {% block m_content %}
 <div class="m-page-head">
-  <div>
-    <h1 class="m-title">Connected apps</h1>
-    <p class="m-sub">External accounts that feed your ledger.</p>
+  <div><h1 class="m-title">Connected apps</h1>
+    <p class="m-sub">Bring payment emails into your review inbox. Keep a spreadsheet copy and put bill reminders on your calendar.</p>
   </div>
 </div>
+<div id="connectedApps" data-status-url="{{ plugin.base_url }}/api/apps">
+  <p class="m-app-notice">Automatic checks run every 30 minutes when enabled. Jobs continue while you leave this page. Tomo must be running with Money enabled. Captured emails become transactions only after you review them.</p>
+  <p id="appsError" class="m-app-error" role="alert" hidden></p>
 
-<section class="m-card">
-  <div class="m-app-card">
-    <span class="m-app-icon" style="background:linear-gradient(135deg,#ea433522,#fbbc0422)">✉️</span>
-    <div class="body">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-        <h3>Gmail</h3>
-        <span class="m-app-status {{ 'on' if gmail.connected else 'off' }}">
-          <span class="pulse"></span>{{ 'Connected' if gmail.connected else 'Not connected' }}
-        </span>
-      </div>
-      <p class="desc">
-        Money scans receipts, payment alerts and bank notifications in your inbox and queues
-        likely transactions for review. Read-only access, tokens stay on this machine under
-        <span class="m-code">~/.tomo/data/money/</span>, and nothing is committed until you confirm.
-      </p>
-
-      {% if gmail.accounts %}
-      {% for a in gmail.accounts %}
-      <div class="m-acct-row">
-        <span class="m-ico sm">✉️</span>
-        <span class="email">{{ a.email }}</span>
-        {% if a.last_sync_at %}<span class="last">last sync {{ a.last_sync_at[:16].replace('T',' ') }} UTC</span>{% else %}<span class="last">never synced</span>{% endif %}
-        <form action="{{ plugin.base_url }}/apps/gmail/disconnect" method="post" style="margin-left:auto">
-          <button class="m-btn ghost sm danger" type="submit" onclick="return confirm('Disconnect this account?')">Disconnect</button>
-        </form>
-      </div>
-      {% endfor %}
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-        <button class="m-btn primary" id="gmailSync" type="button">Sync now</button>
-        <a class="m-btn" href="{{ plugin.base_url }}/inbox">Review inbox</a>
-      </div>
-      {% endif %}
-
-      {% if gmail.has_credentials and not gmail.connected %}
-      <div style="margin-top:14px">
-        <a class="m-btn primary" href="{{ plugin.base_url }}/apps/gmail/connect">Connect Gmail</a>
-      </div>
-      {% elif not gmail.has_credentials %}
-      <form class="m-cred-form" action="{{ plugin.base_url }}/apps/gmail/credentials" method="post">
-        <label class="m-field"><span>Google OAuth client ID</span><input class="m-input" name="client_id" required placeholder="…apps.googleusercontent.com" autocomplete="off"></label>
-        <label class="m-field"><span>Client secret</span><input class="m-input" name="client_secret" type="password" required autocomplete="off"></label>
-        <button class="m-btn" type="submit">Save credentials</button>
+  <section class="m-card m-connected-card">
+    <header class="m-connected-head"><span class="m-app-icon" aria-hidden="true">✉️</span>
+      <div><h2>Gmail <span class="m-app-status {{ 'on' if apps.accounts else 'off' }}">{{ 'Connected' if apps.accounts else 'Not connected' }}</span></h2>
+        <p class="m-sub">Read payment emails from banks, e-wallets and shops into transactions you can review.</p></div>
+    </header>
+    {% for a in apps.accounts %}
+    <div class="m-connection" data-provider="gmail" data-account="{{ a.email }}">
+      <div class="m-connected-head"><strong>{{ a.email }}</strong><span class="m-sync-time" data-last-sync>{{ a.last_sync_at or 'Never synced' }}{% if a.last_sync_at %} UTC{% endif %}</span></div>
+      <form data-app-form action="{{ plugin.base_url }}/apps/gmail/settings" method="post">
+        <input type="hidden" name="email" value="{{ a.email }}">
+        <label class="m-auto-row"><span><strong>Check automatically</strong><small>Every 30 minutes for new payment emails.</small></span>
+          <input class="m-toggle" type="checkbox" name="automatic" {% if a.settings.automatic %}checked{% endif %} aria-label="Automatically check {{ a.email }}"></label>
+        <fieldset class="m-lookback"><legend>Look back</legend>
+          {% for value,label in [('7d','7 days'),('1m','1 mo'),('3m','3 mo'),('6m','6 mo'),('12m','12 mo')] %}
+          <label><input type="radio" name="lookback" value="{{ value }}" {% if a.settings.lookback == value %}checked{% endif %}><span>{{ label }}</span></label>
+          {% endfor %}
+        </fieldset>
+        <div class="m-app-actions"><button class="m-btn" type="submit">Save preferences</button>
+          <button class="m-btn primary" type="button" data-run="gmail">Import selected period</button>
+          <a class="m-btn ghost" href="{{ plugin.base_url }}/inbox">Review inbox</a></div>
       </form>
-      <p class="desc" style="margin-top:10px">
-        Create an OAuth <i>web application</i> client in
-        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>
-        with Gmail read-only scope enabled and redirect URI
-        <span class="m-code">{{ plugin.base_url }}/apps/gmail/callback</span>
-        (use the full host URL). Credentials are stored locally, not in the repo.
-      </p>
-      {% endif %}
+      <div class="m-job-current" data-current-job aria-live="polite"></div>
+      <form data-app-form data-reload data-confirm="Disconnect this Gmail account? Running work will be cancelled." action="{{ plugin.base_url }}/apps/gmail/disconnect" method="post">
+        <input type="hidden" name="email" value="{{ a.email }}"><button class="m-btn ghost danger" type="submit">Disconnect</button>
+      </form>
     </div>
-  </div>
-</section>
+    {% endfor %}
+    {% if apps.configured %}<a class="m-btn" href="{{ plugin.base_url }}/apps/gmail/connect">{{ 'Add Gmail account' if apps.accounts else 'Connect Gmail' }}</a>{% endif %}
+    <p class="m-app-privacy">Gmail access is read-only. Email bodies are processed in memory; Money keeps extracted fields and message references. No email is deleted from Gmail.</p>
+  </section>
 
-<section class="m-card m-section">
-  <h2 class="m-section-h">Coming soon</h2>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
-    <span class="m-chip">🏦 Bank sync</span>
-    <span class="m-chip">📊 Google Sheets</span>
-    <span class="m-chip">💬 Chat capture</span>
-  </div>
-</section>
+  {% for provider,title,icon,description in [('sheets','Google Sheets','▦','Keep a spreadsheet copy of your recorded transactions.'),('calendar','Google Calendar','▣','Add reminders for one-off and recurring bills to your calendar.')] %}
+  {% set connection = apps.connections.get(provider) %}
+  <section class="m-card m-connected-card" data-provider="{{ provider }}" data-account="">
+    <header class="m-connected-head"><span class="m-app-icon {{ provider }}" aria-hidden="true">{{ icon }}</span><div><h2>{{ title }} <span class="m-app-status {{ 'on' if connection else 'off' }}">{{ 'Connected' if connection else 'Not connected' }}</span></h2><p class="m-sub">{{ description }}</p></div></header>
+    {% if connection %}
+    <div class="m-connected-head"><strong>{{ connection.email }}</strong><span class="m-sync-time" data-last-sync></span></div>
+    <form data-app-form action="{{ plugin.base_url }}/apps/{{ provider }}/settings" method="post">
+      <label class="m-field"><span>{{ 'Spreadsheet ID' if provider == 'sheets' else 'Calendar ID' }}</span><input class="m-input" name="target" value="{{ connection.target }}" placeholder="{{ 'ID from the spreadsheet URL' if provider == 'sheets' else 'primary' }}" required></label>
+      <p class="m-app-privacy">{% if provider == 'sheets' %}The <strong>Tomo Money</strong> tab is managed by this export. Its cell values are replaced on each sync, including removed transactions. Other tabs are untouched. Maximum 10,000 transactions.{% else %}Use <strong>primary</strong> or the ID of a calendar you own. Reminders do not record expenses or invite guests.{% endif %} Changing the destination leaves existing copies in the previous destination.</p>
+      <label class="m-auto-row"><span><strong>{{ 'Refresh automatically' if provider == 'sheets' else 'Keep reminders in sync' }}</strong><small>Every 30 minutes while Tomo is running.</small></span><input class="m-toggle" type="checkbox" name="automatic" {% if connection.settings.automatic %}checked{% endif %}></label>
+      <div class="m-app-actions"><button class="m-btn" type="submit">Save destination &amp; preferences</button><button class="m-btn primary" type="button" data-run="{{ provider }}" {% if not connection.target %}disabled{% endif %}>{{ 'Export now' if provider == 'sheets' else 'Sync reminders' }}</button></div>
+    </form>
+    <div class="m-job-current" data-current-job aria-live="polite"></div>
+    <form data-app-form data-reload data-confirm="Disconnect {{ title }}? Existing exported data will remain in Google." action="{{ plugin.base_url }}/apps/{{ provider }}/disconnect" method="post"><button class="m-btn ghost danger">Disconnect</button></form>
+    {% elif apps.configured %}<a class="m-btn" href="{{ plugin.base_url }}/apps/{{ provider }}/connect">Connect {{ title }}</a>
+    {% else %}<p class="m-sub">Save your Google OAuth credentials below to connect.</p>{% endif %}
+  </section>
+  {% endfor %}
+
+  <section class="m-card m-connected-card">
+    <h2>Bill reminders</h2><p class="m-sub">Save a due date and recurrence. Once Calendar has a destination, changes sync in the background.</p>
+    <form data-app-form data-reload action="{{ plugin.base_url }}/apps/calendar/bills" method="post" class="m-bill-form">
+      <label class="m-field"><span>Bill</span><input class="m-input" name="title" required maxlength="120" placeholder="Internet"></label>
+      <label class="m-field"><span>Amount</span><input class="m-input" name="amount" type="number" min="0.01" step="0.01" required></label>
+      <label class="m-field"><span>Currency</span><input class="m-input" name="currency" value="IDR" pattern="[A-Za-z]{3}" maxlength="3" required></label>
+      <label class="m-field"><span>First due date</span><input class="m-input" name="due" type="date" required></label>
+      <label class="m-field"><span>Repeats</span><select class="m-input" name="recurrence"><option value="once">Once</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label>
+      <label class="m-field"><span>Remind days before</span><input class="m-input" name="reminder_days" type="number" min="0" max="28" value="1" required></label>
+      <label class="m-field"><span>Timezone</span><input class="m-input" name="timezone" value="UTC" data-timezone required></label>
+      <button class="m-btn primary" type="submit">Add reminder</button>
+    </form>
+    <p class="m-app-privacy">Reminders are all-day events. Monthly dates such as the 31st skip months without that date; yearly February 29 reminders occur in leap years.</p>
+    {% for bill in apps.bills %}
+    <details class="m-bill-row"><summary><strong>{{ bill.title }}</strong> · {{ bill.currency }} {{ '%.2f'|format(bill.amount_minor / 100) }} · {{ bill.due }} · {{ bill.recurrence }} <span>Edit</span></summary>
+      <form data-app-form data-reload action="{{ plugin.base_url }}/apps/calendar/bills" method="post" class="m-bill-form">
+        <input type="hidden" name="id" value="{{ bill.id }}">
+        <label class="m-field"><span>Bill</span><input class="m-input" name="title" value="{{ bill.title }}" required maxlength="120"></label>
+        <label class="m-field"><span>Amount</span><input class="m-input" name="amount" type="number" min="0.01" step="0.01" value="{{ '%.2f'|format(bill.amount_minor / 100) }}" required></label>
+        <label class="m-field"><span>Currency</span><input class="m-input" name="currency" value="{{ bill.currency }}" required></label>
+        <label class="m-field"><span>Due date</span><input class="m-input" name="due" type="date" value="{{ bill.due }}" required></label>
+        <label class="m-field"><span>Repeats</span><select class="m-input" name="recurrence">{% for r in ['once','weekly','monthly','yearly'] %}<option value="{{ r }}" {% if r == bill.recurrence %}selected{% endif %}>{{ r|capitalize }}</option>{% endfor %}</select></label>
+        <label class="m-field"><span>Remind days before</span><input class="m-input" name="reminder_days" type="number" min="0" max="28" value="{{ bill.reminder_days }}" required></label>
+        <label class="m-field"><span>Timezone</span><input class="m-input" name="timezone" value="{{ bill.timezone }}" required></label>
+        <button class="m-btn">Save reminder</button>
+      </form>
+      <form data-app-form data-reload data-confirm="Delete this reminder and remove its event from the currently connected calendar?" action="{{ plugin.base_url }}/apps/calendar/bills/{{ bill.id }}/delete" method="post"><button class="m-btn ghost danger">Delete reminder</button></form>
+    </details>
+    {% else %}<p class="m-sub">No bill reminders yet.</p>{% endfor %}
+  </section>
+
+  <section class="m-card m-connected-card"><h2>Recent activity</h2><div id="appJobs" aria-live="polite"><p class="m-sub">Loading background jobs…</p></div></section>
+  <details class="m-card m-connected-card" {% if not apps.configured %}open{% endif %}><summary>Google OAuth setup</summary>
+    <p class="m-sub">Create a web application OAuth client in Google Cloud. Enable Gmail, Google Sheets and Google Calendar APIs. Add these authorized redirect URIs:</p>
+    {% for provider in ['gmail','sheets','calendar'] %}<p class="m-code m-callback">{{ oauth_base }}/apps/{{ provider }}/callback</p>{% endfor %}
+    <p class="m-app-privacy">Each app asks for its own permissions. Sheets can read/write spreadsheets; Calendar can manage events on calendars you own. OAuth secrets and tokens are encrypted locally. Disconnect removes local tokens and cancels jobs; revoke the Google app in your Google account to remove its permissions entirely.</p>
+    {% if not apps.accounts and not apps.connections %}
+    <form class="m-cred-form" action="{{ plugin.base_url }}/apps/gmail/credentials" method="post">
+      <label class="m-field"><span>Google OAuth client ID</span><input class="m-input" name="client_id" required autocomplete="off"></label>
+      <label class="m-field"><span>Client secret</span><input class="m-input" name="client_secret" type="password" required autocomplete="off"></label>
+      <button class="m-btn" type="submit">Save credentials</button>
+    </form>{% else %}<p class="m-sub">Disconnect all apps before replacing the OAuth client credentials.</p>{% endif %}
+  </details>
+</div>
 {% endblock %}
+{% block m_scripts %}<script src="{{ plugin.base_url }}/static/apps.js"></script>{% endblock %}

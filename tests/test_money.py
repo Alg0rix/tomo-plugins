@@ -334,7 +334,7 @@ def test_gmail_search_llm_parse_and_dedupe(tmp_path, monkeypatch):
     result = mods.gmail.search(conn, "from:ocbc")
     assert result["query"] == "from:ocbc"
     msg = result["messages"][0]
-    assert msg["external_key"] == "gmail:m1"
+    assert msg["external_key"] == "gmail:a@x.com:m1"
     assert msg["recorded"] is False and msg["queued"] is False
     assert "STARBUCKS" in msg["body"] and msg["from"].startswith("OCBC")
 
