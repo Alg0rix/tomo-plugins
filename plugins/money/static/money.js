@@ -739,34 +739,6 @@
     });
   });
 
-  // ── Apps: gmail sync ─────────────────────────────────────────────
-  var syncBtn = document.getElementById("gmailSync");
-  if (syncBtn) {
-    syncBtn.addEventListener("click", function () {
-      syncBtn.disabled = true;
-      var old = syncBtn.innerHTML;
-      syncBtn.innerHTML = '<span class="m-spin"></span> Syncing…';
-      post(baseUrl() + "/apps/gmail/sync", {})
-        .then(function (d) {
-          Tomo.toast(
-            "Scanned " + d.scanned + " mail" + (d.scanned === 1 ? "" : "s") +
-            " · " + d.candidates + " new · " + d.duplicates + " already seen",
-            "ok"
-          );
-          if (d.candidates > 0) {
-            setTimeout(function () {
-              window.location.href = baseUrl() + "/inbox";
-            }, 700);
-          }
-        })
-        .catch(function (e) { Tomo.toast(e.message || "Sync failed", "err"); })
-        .finally(function () {
-          syncBtn.disabled = false;
-          syncBtn.innerHTML = old;
-        });
-    });
-  }
-
   // Overview sparkline refresh helper (overview page re-render after edits)
   var refreshOverview = null;
 })();

@@ -9,15 +9,19 @@ from fastapi import Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 
 from app.core.deps import session_user_id
-from app.core.secrets import encrypt_secret
 
-from . import capture, gmail, ledger, store
+from . import capture, connected, gmail, jobs, ledger, store
 
 
 def setup(api):
     @contextmanager
     def db(user_id=None):
+        if user_id is None:
+            from app.runtime.tools.user_ctx import current_user_id
+            user_id = current_user_id()
         conn = store.connect(api.user_data_dir(user_id))
+        if store.get_setting(conn, 'jobs_owner') != user_id:
+            store.set_setting(conn, 'jobs_owner', user_id)
         try:
             yield conn
         finally:
@@ -219,23 +223,6 @@ def setup(api):
                 if item["origin"] in {"csv", "receipt", "gmail"}
             ][:10]
             return _render(request, "imports.html", imported=recent)
-
-    @api.router.get("/apps")
-    def apps(request: Request):
-        with db(uid(request)) as conn:
-            accounts = gmail.accounts(conn)
-            return _render(
-                request,
-                "apps.html",
-                gmail={
-                    "connected": bool(accounts),
-                    "accounts": accounts,
-                    "has_credentials": gmail.configured(conn),
-                    "redirect_uri": str(request.base_url).rstrip("/")
-                    + api.base_url
-                    + "/apps/gmail/callback",
-                },
-            )
 
     # ------------------------------------------------------------- ledger API
     @api.router.get("/api/transactions")
@@ -539,79 +526,11 @@ def setup(api):
             )
         return {**result, "parsed": bool(fields.get("amount"))}
 
-    # ------------------------------------------------------------- gmail apps
-    @api.router.post("/apps/gmail/credentials")
-    async def gmail_credentials(request: Request):
-        _guard_origin(request)
-        if request.headers.get("content-type", "").startswith("application/json"):
-            fields = await _json_body(request)
-        else:
-            form = await request.form()
-            fields = dict(form)
-        client_id = str(fields.get("client_id") or "").strip()
-        secret = str(fields.get("client_secret") or "").strip()
-        if not client_id or not secret:
-            raise HTTPException(422, "Both client ID and client secret are required")
-        with db(uid(request)) as conn:
-            store.set_setting(conn, "gmail_client_id", client_id)
-            store.set_setting(conn, "gmail_client_secret", encrypt_secret(secret))
-        return _redirect(request, "/apps")
-
-    @api.router.get("/apps/gmail/connect")
-    def gmail_connect(request: Request):
-        with db(uid(request)) as conn:
-            try:
-                redirect_uri = (
-                    str(request.base_url).rstrip("/")
-                    + api.base_url
-                    + "/apps/gmail/callback"
-                )
-                url = gmail.begin_oauth(conn, redirect_uri)
-            except gmail.GmailError as exc:
-                _error(exc)
-        return RedirectResponse(url, status_code=302)
-
-    @api.router.get("/apps/gmail/callback")
-    def gmail_callback(request: Request, code: str = "", state: str = "", error: str = ""):
-        if error:
-            raise HTTPException(400, f"Google sign-in failed: {error}")
-        with db(uid(request)) as conn:
-            try:
-                gmail.finish_oauth(conn, code, state)
-            except gmail.GmailError as exc:
-                _error(exc)
-        return RedirectResponse(api.base_url + "/apps", status_code=303)
-
-    @api.router.post("/apps/gmail/disconnect")
-    async def gmail_disconnect(request: Request):
-        _guard_origin(request)
-        email = ""
-        if request.headers.get("content-type", "").startswith("application/json"):
-            email = str((await _json_body(request)).get("email") or "")
-        else:
-            email = str((await request.form()).get("email") or "")
-        with db(uid(request)) as conn:
-            result = gmail.disconnect(conn, email or None)
-        if request.headers.get("accept", "").find("application/json") >= 0:
-            return result
-        return _redirect(request, "/apps")
-
-    @api.router.post("/apps/gmail/sync")
-    def gmail_sync(request: Request):
-        _guard_origin(request)
-        with db(uid(request)) as conn:
-            try:
-                return gmail.sync(conn)
-            except gmail.GmailError as exc:
-                _error(exc)
-
-    @api.router.get("/api/apps")
-    def api_apps(request: Request):
-        with db(uid(request)) as conn:
-            return {
-                "configured": gmail.configured(conn),
-                "accounts": gmail.accounts(conn),
-            }
+    # Lifecycle-managed worker: persists progress and requires no open browser.
+    if not hasattr(api, "background_task"):
+        raise RuntimeError("Money connected apps require Tomo's background_task SDK; update Tomo first")
+    api.background_task(lambda stop: jobs.tick(api, stop), interval_seconds=1)
+    connected.register(api, db, uid, _guard_origin, _render)
 
     # ----------------------------------------------------------------- tools
     def _tool(name, description, parameters, handler):
@@ -897,10 +816,7 @@ def setup(api):
         "and which accounts are linked, with last sync times.",
         {"type": "object", "properties": {}},
         _with_conn(
-            lambda conn, a: {
-                "configured": gmail.configured(conn),
-                "accounts": gmail.accounts(conn),
-            }
+            lambda conn, a: connected.snapshot(conn)
         ),
     )
     _tool(
@@ -909,7 +825,7 @@ def setup(api):
         "sender, subject, date and body text for you to read and judge. Uses "
         "Gmail search syntax (from:, after:YYYY/MM/DD, before:, subject:, "
         "newer_than:Nd); an empty query defaults to recent receipt/payment "
-        "mail. Each result carries external_key 'gmail:<id>' plus recorded/"
+        "mail. Each result carries mailbox-scoped external_key plus recorded/"
         "queued flags — pass that key as add_transaction's external_key to "
         "record a message without duplicating it. Read-only: never writes to "
         "the ledger.",
@@ -1025,3 +941,21 @@ def setup(api):
             return {"saved": True, "transaction_id": saved["id"], **fields}
         result = ledger.add_candidate(conn, "text", fields, {"via": "agent"})
         return {"inbox_id": result["id"], **fields}
+
+    _tool(
+        "sync_connected_app",
+        "Queue a background Gmail import, Sheets export, or Calendar reminder sync. "
+        "Gmail candidates require review. Sheets and Calendar write to destinations "
+        "the user configured in Connected apps. Returns a job ID; use connected_apps_status for progress.",
+        {"type": "object", "properties": {
+            "provider": {"type": "string", "enum": ["gmail", "sheets", "calendar"]},
+            "email": {"type": "string"},
+            "lookback": {"type": "string", "enum": list(jobs.LOOKBACKS)},
+        }, "required": ["provider"]},
+        _with_conn(lambda conn, a: connected.queue(conn, a.get("provider"), a)),
+    )
+    _tool(
+        "connected_apps_status", "Read connected apps, background jobs and bill reminders; no credentials.",
+        {"type": "object", "properties": {}},
+        _with_conn(lambda conn, a: connected.snapshot(conn)),
+    )

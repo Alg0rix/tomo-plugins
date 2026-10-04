@@ -1,8 +1,8 @@
 {
   "id": "money",
   "name": "Money",
-  "description": "Personal finance workspace: ledger, budgets, spending sources, reports and charts, Gmail sync, receipt and CSV capture, and a full agent toolset.",
-  "version": "1.2.1",
+  "description": "Personal finance workspace with durable Gmail imports, Google Sheets exports, Calendar bill reminders, budgets, reports, receipt capture, and agent tools.",
+  "version": "1.3.0",
   "sdk_version": 1,
   "icon": "wallet"
 }
