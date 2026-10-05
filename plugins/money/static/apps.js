@@ -20,6 +20,7 @@
     const data = Object.fromEntries(new FormData(form));
     if (form.elements.automatic) data.automatic = form.elements.automatic.checked;
     if (form.elements.auto_approve) data.auto_approve = form.elements.auto_approve.checked;
+    if (form.elements.llm_review) data.llm_review = form.elements.llm_review.checked;
     return data;
   }
   function node(tag, text, cls) {
@@ -39,7 +40,7 @@
     if (p.discovered || job.status === 'succeeded') meter.value = job.status === 'succeeded' ? meter.max : p.done;
     meter.setAttribute('aria-label', 'Processing ' + label);
     el.append(meter, node('p', p.done + ' of ' + p.total + (p.discovered ? '' : '+ found') + ' ' + label + ' processed', 'm-sub'));
-    if (job.provider === 'gmail') el.append(node('p', (p.approved ? p.approved + ' approved · ' : '') + p.candidates + ' queued for review · ' + p.duplicates + ' already seen · ' + (p.skipped || 0) + ' unavailable', 'm-sub'));
+    if (job.provider === 'gmail') el.append(node('p', (p.approved ? p.approved + ' approved · ' : '') + p.candidates + ' queued for review' + (p.dismissed ? ' · ' + p.dismissed + ' dismissed' : '') + ' · ' + p.duplicates + ' already seen · ' + (p.skipped || 0) + ' unavailable', 'm-sub'));
     if (job.error) el.append(node('p', job.error, 'm-app-error'));
     if (job.status === 'retry') el.append(node('p', 'Retry at ' + new Date(job.available_at * 1000).toLocaleString(), 'm-sub'));
     if (['queued','running','retry','failed','cancelled'].includes(job.status)) {

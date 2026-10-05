@@ -28,6 +28,25 @@ _SEARCH_QUERY = (
     "newer_than:90d"
 )
 _MAX_MESSAGES = 60
+_REVIEW_FIELDS = (
+    "kind",
+    "amount",
+    "currency",
+    "category",
+    "merchant",
+    "note",
+    "day",
+    "method",
+)
+
+
+def _apply_review(payload: dict, decision: dict) -> dict:
+    edited = dict(payload)
+    for key in _REVIEW_FIELDS:
+        value = decision.get(key)
+        if value not in (None, ""):
+            edited[key] = value
+    return edited
 _TIMEOUT = httpx.Timeout(20.0)
 # OAuth callback work must stay well under typical reverse-proxy budgets —
 # the exchange + profile fetch run sequentially inside one request.
@@ -365,6 +384,7 @@ def sync(
         raise GmailError("No Gmail account connected")
     query = (query or "").strip() or _SEARCH_QUERY
     cats = [c["name"] for c in ledger.list_categories(conn)]
+    hints = ledger.category_hints(conn)
     report = {"scanned": 0, "candidates": 0, "duplicates": 0, "accounts": []}
     for account in rows:
         account = _valid_token(conn, account)
@@ -401,7 +421,7 @@ def sync(
                 message = _get_full(account["access_token"], message_id)
             except GmailError:
                 continue
-            parsed = capture.parse_gmail_message(message, cats)
+            parsed = capture.parse_gmail_message(message, cats, hints)
             if not parsed:
                 continue
             result = ledger.add_candidate(
@@ -435,14 +455,16 @@ def job_step(conn, job, stop):
     if not rows:
         raise ledger.ValidationError("Gmail disconnected; connect it before syncing")
     account = _valid_token(conn, rows[0])
-    auto_approve = bool(
-        jobs.settings(conn, "gmail", job["account"]).get("auto_approve")
-    )
+    prefs = jobs.settings(conn, "gmail", job["account"])
+    auto_approve = bool(prefs.get("auto_approve"))
+    llm_review = bool(prefs.get("llm_review")) and not auto_approve
+    hints = ledger.category_hints(conn)
     progress = dict(job["progress"])
     progress.setdefault("done", 0)
     progress.setdefault("total", 0)
     progress.setdefault("candidates", 0)
     progress.setdefault("approved", 0)
+    progress.setdefault("dismissed", 0)
     progress.setdefault("duplicates", 0)
 
     def fetch(url, params):
@@ -495,7 +517,12 @@ def job_step(conn, job, stop):
                 skipped = True
             else:
                 cats = [c["name"] for c in ledger.list_categories(conn)]
-                parsed = capture.parse_gmail_message(message, cats)
+                parsed = capture.parse_gmail_message(message, cats, hints)
+        decision = None
+        if parsed and llm_review and live():
+            from . import ai
+
+            decision = ai.review_candidate(parsed["payload"], cats, hints)
         if not live():
             return
         # Serialize the final ownership check and candidate write against cancel.
@@ -512,12 +539,17 @@ def job_step(conn, job, stop):
                 parsed["provenance"]["account"] = account["email"]
                 parsed["provenance"].pop("snippet", None)
                 payload = {**parsed["payload"], "external_key": key}
+                if decision and decision.get("action") == "edit":
+                    payload = _apply_review(payload, decision)
                 cur = conn.execute(
                     "INSERT INTO inbox(origin,payload,provenance) VALUES(?,?,?)",
                     ("gmail", json.dumps(payload), json.dumps(parsed["provenance"])),
                 )
                 approved = False
-                if auto_approve:
+                dismissed = False
+                if auto_approve or (
+                    decision and decision.get("action") in ("approve", "edit")
+                ):
                     try:
                         ledger.add_transaction(conn, payload)
                     except ledger.ValidationError:
@@ -529,8 +561,17 @@ def job_step(conn, job, stop):
                             (cur.lastrowid,),
                         )
                         approved = True
+                elif decision and decision.get("action") == "dismiss":
+                    conn.execute(
+                        "UPDATE inbox SET status='dismissed',"
+                        " resolved_at=datetime('now') WHERE id=?",
+                        (cur.lastrowid,),
+                    )
+                    dismissed = True
                 if approved:
                     progress["approved"] += 1
+                elif dismissed:
+                    progress["dismissed"] += 1
                 else:
                     progress["candidates"] += 1
             progress["pending"] = pending[1:]

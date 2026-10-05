@@ -189,6 +189,7 @@ def register(api, db, uid, guard, render):
                     flag(body, "automatic"),
                     body.get("lookback", "7d"),
                     flag(body, "auto_approve"),
+                    flag(body, "llm_review"),
                 )
             return google_apps.configure(
                 conn, provider, body.get("target"), flag(body, "automatic")

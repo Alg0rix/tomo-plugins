@@ -304,6 +304,122 @@ def test_gmail_rate_limit_is_transient(env, monkeypatch):
     assert not result.value.permanent
 
 
+def test_category_hints_teach_the_next_parse(env, monkeypatch):
+    import json
+    from types import SimpleNamespace
+    from app.runtime import llm
+
+    m, c = env
+    m.ledger.add_transaction(
+        c,
+        {
+            "kind": "expense",
+            "amount": "12.50",
+            "category": "Groceries",
+            "note": "old note",
+            "day": "2026-10-01",
+            "external_key": "gmail:me@example.com:old",
+        },
+    )
+    c.execute(
+        "INSERT INTO inbox (origin, status, payload) VALUES ('gmail', 'confirmed', ?)",
+        (json.dumps({"merchant": "Indomaret", "external_key": "gmail:me@example.com:old"}),),
+    )
+    c.commit()
+    hints = m.ledger.category_hints(c)
+    assert hints == [{"merchant": "Indomaret", "category": "Groceries"}]
+    seen = {}
+
+    class Client:
+        async def complete(self, messages):
+            seen["prompt"] = messages[-1]["content"]
+            return SimpleNamespace(
+                content='{"action":"approve","amount":1,"merchant":"Indomaret","category":"Groceries"}'
+            )
+
+        async def aclose(self):
+            return None
+
+    monkeypatch.setattr(llm, "get_auxiliary_llm", lambda *a, **k: Client())
+    assert m.ai.extract_transaction("Paid 1 at Indomaret", ["Groceries"], hints)["merchant"] == "Indomaret"
+    assert "Indomaret → Groceries" in seen["prompt"]
+    decision = m.ai.review_candidate(
+        {"merchant": "Indomaret", "amount": "1.00", "category": "Uncategorized", "note": "Paid"},
+        ["Groceries"],
+        hints,
+    )
+    assert decision["action"] == "approve"
+    assert "Indomaret → Groceries" in seen["prompt"]
+
+
+def test_llm_review_records_edits_and_dismisses_the_rest(env, monkeypatch):
+    m, c = env
+    email = c.execute("SELECT email FROM gmail_accounts").fetchone()[0]
+
+    def remote(access, url, params=None, timeout=None):
+        if url.endswith("/messages"):
+            return {"messages": [{"id": "m1"}, {"id": "m2"}]}
+        message_id = url.rsplit("/", 1)[-1]
+        if message_id == "m2":
+            return _gmail_message(message_id, "news", "Newsletter payment Rp 10.000", "Paid Rp 10.000")
+        return _gmail_message(message_id, "shop", "Payment Rp 25.000", "Paid Rp 25.000 at the shop")
+
+    def review(payload, categories, hints=None):
+        if "Newsletter" in str(payload.get("note") or ""):
+            return {"action": "dismiss"}
+        return {"action": "edit", "category": "Food"}
+
+    monkeypatch.setattr(m.gmail, "_api_get", remote)
+    monkeypatch.setattr(m.ai, "extract_transaction", lambda *a, **k: None)
+    monkeypatch.setattr(m.ai, "review_candidate", review)
+    m.jobs.configure(c, "gmail", email, False, llm_review=True)
+    assert m.jobs.settings(c, "gmail", email)["llm_review"] == 1
+    job = m.jobs.enqueue(c, "gmail", email, {"lookback": "0d"})
+    for _ in range(8):
+        m.jobs.run_one(c, threading.Event())
+        if m.jobs.get(c, job["id"])["status"] == "succeeded":
+            break
+    result = m.jobs.get(c, job["id"])
+    assert result["status"] == "succeeded"
+    assert result["progress"]["approved"] == 1
+    assert result["progress"]["dismissed"] == 1
+    assert result["progress"]["candidates"] == 0
+    row = c.execute("SELECT category FROM transactions").fetchone()
+    assert row[0] == "Food"
+    assert c.execute("SELECT count(*) FROM inbox WHERE status='dismissed'").fetchone()[0] == 1
+    assert c.execute("SELECT count(*) FROM inbox WHERE status='pending'").fetchone()[0] == 0
+
+
+def test_finished_sync_notifies_only_when_review_remains(env):
+    m, _conn = env
+    assert m.jobs.review_message({"approved": 3, "candidates": 1}) == "3 recorded · 1 needs review"
+    assert m.jobs.review_message({"approved": 2, "candidates": 0}) == ""
+    sent = {}
+
+    class Api:
+        class settings:
+            @staticmethod
+            def get(key, user_id=None):
+                return {"id": "tok"}
+
+        async def notify(self, target, message, *, user_id=None):
+            sent["args"] = (target, message, user_id)
+            return {"message_id": 1}
+
+    m.jobs.notify_review(
+        Api(),
+        "alice",
+        {"provider": "gmail", "status": "succeeded", "progress": {"approved": 3, "candidates": 1}},
+    )
+    assert sent["args"] == ("tok", "3 recorded · 1 needs review", "alice")
+    m.jobs.notify_review(
+        Api(),
+        "alice",
+        {"provider": "gmail", "status": "succeeded", "progress": {"approved": 2, "candidates": 0}},
+    )
+    assert sent["args"][1] == "3 recorded · 1 needs review"
+
+
 def test_background_extraction_closes_model_client(env, monkeypatch):
     from types import SimpleNamespace
     from app.runtime import llm

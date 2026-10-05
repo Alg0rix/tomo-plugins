@@ -44,7 +44,27 @@ async def _complete(client, messages):
         await client.aclose()
 
 
-def extract_transaction(text: str, categories: list[str]) -> dict | None:
+def _hint_block(hints) -> str:
+    lines = []
+    for item in (hints or [])[:20]:
+        if not isinstance(item, dict):
+            continue
+        merchant = str(item.get("merchant") or "").strip()
+        category = str(item.get("category") or "").strip()
+        if not merchant or not category or len(merchant) > 80 or len(category) > 80:
+            continue
+        lines.append(f"- {merchant} → {category}")
+    if not lines:
+        return ""
+    return (
+        "Known merchant categories from this user's ledger. Prefer them when the"
+        " merchant matches:\n" + "\n".join(lines) + "\n\n"
+    )
+
+
+def extract_transaction(
+    text: str, categories: list[str], hints: list[dict] | None = None
+) -> dict | None:
     """Extract {kind, amount, currency, category, day, merchant, note} from text."""
     if not text or not text.strip():
         return None
@@ -62,7 +82,9 @@ def extract_transaction(text: str, categories: list[str]) -> dict | None:
             + '] or a short new name, "day": "YYYY-MM-DD" or null,'
             ' "merchant": string or null, "note": short string,'
             ' "method": short lowercase payment rail or null'
-            " (e.g. qris, cash, debit, credit, transfer, e-wallet)}.\n\nText:\n"
+            " (e.g. qris, cash, debit, credit, transfer, e-wallet)}.\n\n"
+            + _hint_block(hints)
+            + "Text:\n"
             + text[:6000]
         )
         resp = await _complete(
@@ -78,6 +100,70 @@ def extract_transaction(text: str, categories: list[str]) -> dict | None:
         return _json_block(_run(_call()) or "")
     except Exception:
         return None
+
+
+_REVIEW_FIELDS = (
+    "kind",
+    "amount",
+    "currency",
+    "category",
+    "merchant",
+    "note",
+    "day",
+    "method",
+)
+
+
+def review_candidate(
+    payload: dict, categories: list[str], hints: list[dict] | None = None
+) -> dict | None:
+    """One triage call: approve, edit, or dismiss. None means leave it pending."""
+    if not isinstance(payload, dict):
+        return None
+
+    async def _call():
+        from app.runtime.llm import get_auxiliary_llm
+
+        client = get_auxiliary_llm("money_review")
+        capture = {key: payload.get(key) for key in _REVIEW_FIELDS}
+        prompt = (
+            "Decide what to do with this parsed payment capture. Reply with JSON"
+            ' only: {"action": "approve"|"edit"|"dismiss"}. approve = the fields'
+            " are a real payment and look right. edit = fix fields that disagree"
+            " with the categories or the user's corrections; include only the"
+            " fields you change (kind, amount, currency, category, merchant, note,"
+            " day, method). dismiss = not a payment (newsletter, balance, marketing).\n\n"
+            f"Categories: {', '.join(categories[:40])}\n"
+            + _hint_block(hints)
+            + "Capture:\n"
+            + json.dumps(capture, default=str)[:4000]
+        )
+        resp = await _complete(
+            client,
+            [
+                {"role": "system", "content": "You output strict JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        return resp.content
+
+    try:
+        parsed = _json_block(_run(_call()) or "")
+    except Exception:
+        return None
+    if not parsed:
+        return None
+    action = parsed.get("action")
+    if action not in ("approve", "edit", "dismiss"):
+        return None
+    fields = {
+        key: parsed[key]
+        for key in _REVIEW_FIELDS
+        if parsed.get(key) not in (None, "")
+    }
+    if action == "edit" and not fields:
+        action = "approve"
+    return {"action": action, **fields}
 
 
 def categorize(text: str, categories: list[str]) -> str | None:

@@ -341,7 +341,7 @@ def test_gmail_search_llm_parse_and_dedupe(tmp_path, monkeypatch):
     monkeypatch.setattr(
         mods.ai,
         "extract_transaction",
-        lambda text, cats: {
+        lambda text, cats, hints=None: {
             "kind": "expense",
             "amount": 250000,
             "currency": "IDR",

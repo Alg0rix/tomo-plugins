@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS sync_settings (
  provider TEXT NOT NULL, account TEXT NOT NULL,
  automatic INTEGER NOT NULL DEFAULT 0, lookback TEXT NOT NULL DEFAULT '7d',
  auto_approve INTEGER NOT NULL DEFAULT 0,
+ llm_review INTEGER NOT NULL DEFAULT 0,
  next_run REAL NOT NULL DEFAULT 0, last_success REAL,
  PRIMARY KEY(provider,account)
 );
@@ -89,6 +90,7 @@ def public(row):
                 "discovered",
                 "candidates",
                 "approved",
+                "dismissed",
                 "duplicates",
                 "skipped",
             )
@@ -143,16 +145,20 @@ def settings(conn, provider, account=""):
         automatic=0,
         lookback="7d",
         auto_approve=0,
+        llm_review=0,
         next_run=0,
         last_success=None,
     )
 
 
-def configure(conn, provider, account, automatic, lookback="7d", auto_approve=False):
+def configure(
+    conn, provider, account, automatic, lookback="7d", auto_approve=False, llm_review=False
+):
     if (
         provider not in ("gmail", "sheets", "calendar")
         or type(automatic) is not bool
         or type(auto_approve) is not bool
+        or type(llm_review) is not bool
     ):
         raise ledger.ValidationError(
             "A supported app and boolean preferences are required"
@@ -160,12 +166,14 @@ def configure(conn, provider, account, automatic, lookback="7d", auto_approve=Fa
     lookback_start(lookback)
     with conn:
         conn.execute(
-            "INSERT INTO sync_settings(provider,account,automatic,lookback,auto_approve,next_run) "
-            "VALUES(?,?,?,?,?,?) ON CONFLICT(provider,account) DO UPDATE SET "
+            "INSERT INTO sync_settings"
+            "(provider,account,automatic,lookback,auto_approve,llm_review,next_run) "
+            "VALUES(?,?,?,?,?,?,?) ON CONFLICT(provider,account) DO UPDATE SET "
             "automatic=excluded.automatic,lookback=excluded.lookback,"
-            "auto_approve=excluded.auto_approve,next_run=excluded.next_run",
+            "auto_approve=excluded.auto_approve,llm_review=excluded.llm_review,"
+            "next_run=excluded.next_run",
             (provider, account, int(automatic), lookback, int(auto_approve),
-             time.time() + INTERVAL),
+             int(llm_review), time.time() + INTERVAL),
         )
     return settings(conn, provider, account)
 
@@ -320,12 +328,46 @@ def schedule(conn):
         )
 
 
+def review_message(progress) -> str:
+    """Text for a finished sync that still has captures waiting on the user."""
+    pending = int((progress or {}).get("candidates") or 0)
+    if pending <= 0:
+        return ""
+    approved = int(progress.get("approved") or 0)
+    recorded = f"{approved} recorded · " if approved else ""
+    needs = "1 needs review" if pending == 1 else f"{pending} need review"
+    return f"{recorded}{needs}"
+
+
+def notify_review(api, owner, job) -> None:
+    if job.get("provider") != "gmail" or job.get("status") != "succeeded":
+        return
+    text = review_message(job.get("progress") or {})
+    if not text:
+        return
+    saved = api.settings.get("notify_target", user_id=owner)
+    if isinstance(saved, dict):
+        target = saved.get("id")
+    elif isinstance(saved, str):
+        target = saved
+    else:
+        target = None
+    if not target:
+        return
+    import asyncio
+
+    try:
+        asyncio.run(api.notify(target, text, user_id=owner))
+    except Exception:
+        log.warning("Money review notify failed for %s", owner)
+
+
 def run_one(conn, stop):
     if stop.is_set():
-        return
+        return None
     job = claim(conn)
     if not job:
-        return
+        return None
     try:
         if job["provider"] == "gmail":
             from .gmail import job_step
@@ -347,6 +389,7 @@ def run_one(conn, stop):
         )
         if not known:
             log.warning("Money %s job failed (%s)", job["provider"], type(exc).__name__)
+    return get(conn, job["id"])
 
 
 def tick(api, stop):
@@ -370,7 +413,9 @@ def tick(api, stop):
                 continue
             token = bind_user(owner)
             schedule(conn)
-            run_one(conn, stop)
+            outcome = run_one(conn, stop)
+            if isinstance(outcome, dict):
+                notify_review(api, owner, outcome)
         finally:
             if token is not None:
                 reset_user(token)

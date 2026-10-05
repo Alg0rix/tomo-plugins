@@ -233,7 +233,9 @@ def gmail_message_content(message: dict) -> dict:
     }
 
 
-def llm_email_candidate(content: dict, categories: list[str]) -> dict | None:
+def llm_email_candidate(
+    content: dict, categories: list[str], hints: list[dict] | None = None
+) -> dict | None:
     """Use the configured LLM to extract a transaction from an email."""
     from . import ai
 
@@ -241,7 +243,7 @@ def llm_email_candidate(content: dict, categories: list[str]) -> dict | None:
         f"From: {content['from']}\nSubject: {content['subject']}\n\n"
         + content["body"]
     )
-    fields = ai.extract_transaction(text, categories)
+    fields = ai.extract_transaction(text, categories, hints)
     if not fields:
         return None
     kind = str(fields.get("kind") or "expense").lower()
@@ -276,7 +278,9 @@ def llm_email_candidate(content: dict, categories: list[str]) -> dict | None:
 
 
 def parse_gmail_message(
-    message: dict, categories: list[str] | None = None
+    message: dict,
+    categories: list[str] | None = None,
+    hints: list[dict] | None = None,
 ) -> dict | None:
     """Extract a candidate transaction from a Gmail API message resource.
 
@@ -286,7 +290,7 @@ def parse_gmail_message(
     content = gmail_message_content(message)
     candidate = None
     if categories:
-        candidate = llm_email_candidate(content, categories)
+        candidate = llm_email_candidate(content, categories, hints)
     if candidate is None:
         candidate = parse_email_candidate(
             content["from"], content["subject"], content["body"], content["when"]
