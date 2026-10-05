@@ -83,13 +83,13 @@ def register(api, db, uid, guard, render):
             return body
         return dict(await request.form())
 
-    def automatic(body):
-        value = body.get("automatic", False)
+    def flag(body, name):
+        value = body.get(name, False)
         if type(value) is bool:
             return value
         if value in ("on", "off"):
             return value == "on"
-        raise ledger.ValidationError("automatic must be a boolean")
+        raise ledger.ValidationError(f"{name} must be a boolean")
 
     @api.router.get("/apps")
     def apps(request: Request):
@@ -183,10 +183,15 @@ def register(api, db, uid, guard, render):
                 if not any(a["email"] == email for a in gmail.accounts(conn)):
                     raise ledger.ValidationError("Gmail account not connected")
                 return jobs.configure(
-                    conn, provider, email, automatic(body), body.get("lookback", "7d")
+                    conn,
+                    provider,
+                    email,
+                    flag(body, "automatic"),
+                    body.get("lookback", "7d"),
+                    flag(body, "auto_approve"),
                 )
             return google_apps.configure(
-                conn, provider, body.get("target"), automatic(body)
+                conn, provider, body.get("target"), flag(body, "automatic")
             )
 
     @api.router.post("/apps/{provider}/sync")

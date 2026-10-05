@@ -31,6 +31,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_sync_active ON sync_jobs(provider,account)
 CREATE TABLE IF NOT EXISTS sync_settings (
  provider TEXT NOT NULL, account TEXT NOT NULL,
  automatic INTEGER NOT NULL DEFAULT 0, lookback TEXT NOT NULL DEFAULT '7d',
+ auto_approve INTEGER NOT NULL DEFAULT 0,
  next_run REAL NOT NULL DEFAULT 0, last_success REAL,
  PRIMARY KEY(provider,account)
 );
@@ -87,6 +88,7 @@ def public(row):
                 "total",
                 "discovered",
                 "candidates",
+                "approved",
                 "duplicates",
                 "skipped",
             )
@@ -140,23 +142,30 @@ def settings(conn, provider, account=""):
         account=account,
         automatic=0,
         lookback="7d",
+        auto_approve=0,
         next_run=0,
         last_success=None,
     )
 
 
-def configure(conn, provider, account, automatic, lookback="7d"):
-    if provider not in ("gmail", "sheets", "calendar") or type(automatic) is not bool:
+def configure(conn, provider, account, automatic, lookback="7d", auto_approve=False):
+    if (
+        provider not in ("gmail", "sheets", "calendar")
+        or type(automatic) is not bool
+        or type(auto_approve) is not bool
+    ):
         raise ledger.ValidationError(
-            "A supported app and boolean automatic are required"
+            "A supported app and boolean preferences are required"
         )
     lookback_start(lookback)
     with conn:
         conn.execute(
-            "INSERT INTO sync_settings(provider,account,automatic,lookback,next_run) "
-            "VALUES(?,?,?,?,?) ON CONFLICT(provider,account) DO UPDATE SET "
-            "automatic=excluded.automatic,lookback=excluded.lookback,next_run=excluded.next_run",
-            (provider, account, int(automatic), lookback, time.time() + INTERVAL),
+            "INSERT INTO sync_settings(provider,account,automatic,lookback,auto_approve,next_run) "
+            "VALUES(?,?,?,?,?,?) ON CONFLICT(provider,account) DO UPDATE SET "
+            "automatic=excluded.automatic,lookback=excluded.lookback,"
+            "auto_approve=excluded.auto_approve,next_run=excluded.next_run",
+            (provider, account, int(automatic), lookback, int(auto_approve),
+             time.time() + INTERVAL),
         )
     return settings(conn, provider, account)
 

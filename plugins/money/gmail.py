@@ -435,10 +435,14 @@ def job_step(conn, job, stop):
     if not rows:
         raise ledger.ValidationError("Gmail disconnected; connect it before syncing")
     account = _valid_token(conn, rows[0])
+    auto_approve = bool(
+        jobs.settings(conn, "gmail", job["account"]).get("auto_approve")
+    )
     progress = dict(job["progress"])
     progress.setdefault("done", 0)
     progress.setdefault("total", 0)
     progress.setdefault("candidates", 0)
+    progress.setdefault("approved", 0)
     progress.setdefault("duplicates", 0)
 
     def fetch(url, params):
@@ -508,11 +512,27 @@ def job_step(conn, job, stop):
                 parsed["provenance"]["account"] = account["email"]
                 parsed["provenance"].pop("snippet", None)
                 payload = {**parsed["payload"], "external_key": key}
-                conn.execute(
+                cur = conn.execute(
                     "INSERT INTO inbox(origin,payload,provenance) VALUES(?,?,?)",
                     ("gmail", json.dumps(payload), json.dumps(parsed["provenance"])),
                 )
-                progress["candidates"] += 1
+                approved = False
+                if auto_approve:
+                    try:
+                        ledger.add_transaction(conn, payload)
+                    except ledger.ValidationError:
+                        pass
+                    else:
+                        conn.execute(
+                            "UPDATE inbox SET status='confirmed',"
+                            " resolved_at=datetime('now') WHERE id=?",
+                            (cur.lastrowid,),
+                        )
+                        approved = True
+                if approved:
+                    progress["approved"] += 1
+                else:
+                    progress["candidates"] += 1
             progress["pending"] = pending[1:]
             progress["done"] += 1
             # Same transaction: a crash cannot insert the candidate without its cursor.

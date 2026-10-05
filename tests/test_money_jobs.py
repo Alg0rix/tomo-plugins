@@ -98,6 +98,43 @@ def test_gmail_pagination_progress_dedupe_and_no_body(env, monkeypatch):
     assert c.execute("SELECT count(*) FROM inbox").fetchone()[0] == 62
 
 
+def test_auto_approve_records_parsed_transactions(env, monkeypatch):
+    m, c = env
+    email = c.execute("SELECT email FROM gmail_accounts").fetchone()[0]
+
+    def remote(access, url, params=None, timeout=None):
+        if url.endswith("/messages"):
+            return {"messages": [{"id": "m1"}, {"id": "m2"}]}
+        return _gmail_message(
+            url.rsplit("/", 1)[-1],
+            "bank",
+            "Payment Rp 25.000",
+            "Paid Rp 25.000 private body",
+        )
+
+    monkeypatch.setattr(m.gmail, "_api_get", remote)
+    monkeypatch.setattr(m.ai, "extract_transaction", lambda *a: None)
+    m.jobs.configure(c, "gmail", email, True, auto_approve=True)
+    assert m.jobs.settings(c, "gmail", email)["auto_approve"] == 1
+    job = m.jobs.enqueue(c, "gmail", email, {"lookback": "0d"})
+    for _ in range(10):
+        m.jobs.run_one(c, threading.Event())
+        if m.jobs.get(c, job["id"])["status"] == "succeeded":
+            break
+    result = m.jobs.get(c, job["id"])
+    assert result["status"] == "succeeded"
+    assert result["progress"]["approved"] == 2
+    assert result["progress"]["candidates"] == 0
+    assert (
+        c.execute(
+            "SELECT count(*) FROM transactions WHERE external_key LIKE 'gmail:%'"
+        ).fetchone()[0]
+        == 2
+    )
+    assert c.execute("SELECT count(*) FROM inbox WHERE status='confirmed'").fetchone()[0] == 2
+    assert c.execute("SELECT count(*) FROM inbox WHERE status='pending'").fetchone()[0] == 0
+
+
 def test_stopped_worker_does_not_claim(env):
     m, c = env
     j = m.jobs.enqueue(c, "gmail", "me@example.com", {})
