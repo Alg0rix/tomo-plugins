@@ -168,6 +168,11 @@ def migrate(conn: sqlite3.Connection) -> None:
     for column, ddl in _TXN_COLUMNS.items():
         if column not in existing:
             conn.execute(f"ALTER TABLE transactions ADD COLUMN {column} {ddl}")
+    sync_cols = {row[1] for row in conn.execute("PRAGMA table_info(sync_settings)")}
+    if "auto_approve" not in sync_cols:
+        conn.execute(
+            "ALTER TABLE sync_settings ADD COLUMN auto_approve INTEGER NOT NULL DEFAULT 0"
+        )
     conn.executescript(INDEXES)
     conn.execute(
         "UPDATE transactions SET created_at = datetime('now') WHERE created_at = ''"

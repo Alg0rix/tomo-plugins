@@ -21,6 +21,8 @@
         <input type="hidden" name="email" value="{{ a.email }}">
         <label class="m-auto-row"><span><strong>Check automatically</strong><small>Every 30 minutes for new payment emails.</small></span>
           <input class="m-toggle" type="checkbox" name="automatic" {% if a.settings.automatic %}checked{% endif %} aria-label="Automatically check {{ a.email }}"></label>
+        <label class="m-auto-row"><span><strong>Approve automatically</strong><small>Skip review — every parsed capture becomes a transaction.</small></span>
+          <input class="m-toggle" type="checkbox" name="auto_approve" {% if a.settings.auto_approve %}checked{% endif %} aria-label="Automatically approve {{ a.email }} captures"></label>
         <fieldset class="m-lookback"><legend>Look back</legend>
           {% for value,label in [('0d','Today'),('7d','7 days'),('1m','1 mo'),('3m','3 mo'),('6m','6 mo'),('12m','12 mo')] %}
           <label><input type="radio" name="lookback" value="{{ value }}" {% if a.settings.lookback == value %}checked{% endif %}><span>{{ label }}</span></label>
