@@ -40,7 +40,7 @@ Data survives reload, disable, and uninstall. Tool availability requires the plu
 **Connected apps and background jobs**
 
 - `plugin__money__connected_apps_status` reads linked apps, recent jobs, last success/next check, and bill reminders. It never returns credentials.
-- `plugin__money__sync_connected_app` queues `provider=gmail|sheets|calendar`; Gmail accepts an optional account `email` and `lookback=7d|1m|3m|6m|12m`. It returns immediately with a job ID. Check status rather than claiming the import/export already completed.
+- `plugin__money__sync_connected_app` queues `provider=gmail|sheets|calendar`; Gmail accepts an optional account `email` and `lookback=0d|7d|1m|3m|6m|12m`. It returns immediately with a job ID. Check status rather than claiming the import/export already completed.
 - Gmail jobs paginate, survive reload/restart, and enqueue candidates for review. Automatic checks are opt-in, every 30 minutes while Tomo runs and Money is enabled. Cancellation/retry are available on Connected apps.
 - Sheets exports only recorded transactions into the user's configured spreadsheet's `Tomo Money` tab. Sync replaces that tab's cell values and removes obsolete rows. Other tabs are untouched. Limit: 10,000 transactions; larger ledgers fail visibly without replacing data.
 - Calendar sync creates/updates bill reminder events on the configured owned calendar. Bill edits/deletions trigger background sync. It never creates financial transactions. The Apps page offers one-off, weekly, monthly and yearly bills with timezone and reminder controls. Monthly day 31 skips months without that day.

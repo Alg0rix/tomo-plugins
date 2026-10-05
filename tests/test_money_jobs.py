@@ -46,6 +46,7 @@ def test_lookback_calendar_months_and_invalid(env):
     from datetime import date
 
     m, c = env
+    assert m.jobs.lookback_start("0d", date(2026, 3, 31)) == date(2026, 3, 31)
     assert m.jobs.lookback_start("1m", date(2026, 3, 31)) == date(2026, 2, 28)
     assert m.jobs.lookback_start("12m", date(2024, 2, 29)) == date(2023, 2, 28)
     with pytest.raises(m.ledger.ValidationError):
