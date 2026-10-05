@@ -93,6 +93,44 @@ def clean_method(value) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip().lower())[:40]
 
 
+def category_hints(conn: sqlite3.Connection, limit: int = 20) -> list[dict]:
+    """Recent merchant → category pairs, newest correction first.
+
+    Confirmed inbox rows supply the merchant. A hand-entered note is the
+    fallback so a category edit still teaches the next parse.
+    """
+    rows = store.rows(
+        conn,
+        """
+        SELECT t.category AS category,
+               COALESCE(
+                 NULLIF(json_extract(i.payload, '$.merchant'), ''),
+                 NULLIF(t.note, '')
+               ) AS merchant
+        FROM transactions t
+        LEFT JOIN inbox i
+          ON i.status = 'confirmed'
+         AND json_extract(i.payload, '$.external_key') = t.external_key
+        WHERE t.category != 'Uncategorized'
+        ORDER BY t.updated_at DESC
+        LIMIT 80
+        """,
+    )
+    seen: set[str] = set()
+    hints = []
+    for row in rows:
+        merchant = str(row["merchant"] or "").strip()[:80]
+        category = str(row["category"] or "").strip()[:80]
+        key = merchant.casefold()
+        if not merchant or not category or key in seen:
+            continue
+        seen.add(key)
+        hints.append({"merchant": merchant, "category": category})
+        if len(hints) >= limit:
+            break
+    return hints
+
+
 # --- Transactions -----------------------------------------------------------
 
 def add_transaction(conn: sqlite3.Connection, fields: dict) -> dict:

@@ -536,9 +536,34 @@ def setup(api):
     def _tool(name, description, parameters, handler):
         api.tool(name, description, parameters, handler)
 
+    def _remember_channel():
+        # Save the chat this tool ran in so a later sync can ping that channel.
+        try:
+            from app.runtime.artifacts.fs import current_session_id
+            from app.runtime.tools.user_ctx import current_user_id
+
+            user_id = current_user_id()
+            session_id = current_session_id()
+            saved = api.settings.get("notify_target", user_id=user_id)
+            if (
+                isinstance(saved, dict)
+                and saved.get("session_id") == session_id
+                and saved.get("id")
+            ):
+                return
+            token = api.capture_notification_target(user_id=user_id)
+            api.settings.set(
+                "notify_target",
+                {"id": token, "session_id": session_id},
+                user_id=user_id,
+            )
+        except Exception:
+            return
+
     def _with_conn(fn):
         def run(arguments):
             with db() as conn:
+                _remember_channel()
                 try:
                     return fn(conn, arguments or {})
                 except ledger.ValidationError as exc:
@@ -922,7 +947,8 @@ def setup(api):
         from . import ai
 
         cats = [c["name"] for c in ledger.list_categories(conn)]
-        fields = ai.extract_transaction(text, cats) if text.strip() else None
+        hints = ledger.category_hints(conn)
+        fields = ai.extract_transaction(text, cats, hints) if text.strip() else None
         if not fields:
             found = capture.extract_amount(text)
             if not found:

@@ -173,6 +173,10 @@ def migrate(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE sync_settings ADD COLUMN auto_approve INTEGER NOT NULL DEFAULT 0"
         )
+    if "llm_review" not in sync_cols:
+        conn.execute(
+            "ALTER TABLE sync_settings ADD COLUMN llm_review INTEGER NOT NULL DEFAULT 0"
+        )
     conn.executescript(INDEXES)
     conn.execute(
         "UPDATE transactions SET created_at = datetime('now') WHERE created_at = ''"

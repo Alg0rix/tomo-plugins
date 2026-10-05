@@ -80,7 +80,7 @@ Money contributes `plugin__money__money-management`, Token Monitor contributes
 `plugin__token_monitor__token-usage`, and Task Board contributes
 `plugin__kanban__task-board`. Tool permissions are configured separately.
 
-## Money connected apps (1.3.0)
+## Money connected apps (1.4.0)
 
 Money's Connected apps page supports Gmail imports with today-only, 7-day and
 1/3/6/12-month lookbacks, persistent progress, cancel/retry and optional 30-minute checks. Imports
