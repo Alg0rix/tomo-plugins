@@ -82,8 +82,8 @@ Money contributes `plugin__money__money-management`, Token Monitor contributes
 
 ## Money connected apps (1.3.0)
 
-Money's Connected apps page supports Gmail imports with 7-day, 1/3/6/12-month
-lookbacks, persistent progress, cancel/retry and optional 30-minute checks. Imports
+Money's Connected apps page supports Gmail imports with today-only, 7-day and
+1/3/6/12-month lookbacks, persistent progress, cancel/retry and optional 30-minute checks. Imports
 run in Tomo's lifecycle-managed worker, outside web requests, and always queue
 candidates for review. Tomo must support `api.background_task`; update Tomo before
 installing this version on an older runtime. Jobs resume after restart or reload;

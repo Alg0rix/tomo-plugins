@@ -10,7 +10,7 @@
 ## Global Constraints
 - No external broker; reuse SDK lifecycle and existing user isolation.
 - Default automatic checks off; when enabled, every 1800 seconds.
-- Gmail lookbacks: 7d, 1m, 3m, 6m, 12m.
+- Gmail lookbacks: 0d (from today), 7d, 1m, 3m, 6m, 12m.
 - No raw email body persistence; captured candidates require review.
 - No live provider writes in tests; encrypted credentials only.
 

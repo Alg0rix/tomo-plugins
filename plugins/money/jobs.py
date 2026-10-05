@@ -13,7 +13,7 @@ from . import ledger, store
 
 log = logging.getLogger(__name__)
 ACTIVE = ("queued", "running", "retry")
-LOOKBACKS = ("7d", "1m", "3m", "6m", "12m")
+LOOKBACKS = ("0d", "7d", "1m", "3m", "6m", "12m")
 INTERVAL = 1800
 LEASE = 120
 
@@ -40,7 +40,9 @@ CREATE TABLE IF NOT EXISTS sync_settings (
 def lookback_start(value, today=None):
     today = today or date.today()
     if value not in LOOKBACKS:
-        raise ledger.ValidationError("Choose 7d, 1m, 3m, 6m or 12m")
+        raise ledger.ValidationError("Choose 0d, 7d, 1m, 3m, 6m or 12m")
+    if value == "0d":
+        return today
     if value == "7d":
         return today - timedelta(days=7)
     months = today.year * 12 + today.month - 1 - int(value[:-1])

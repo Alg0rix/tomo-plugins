@@ -1,6 +1,6 @@
 # Money connected apps
 
-Implement the supplied Connected Apps reference inside Money's existing theme. Gmail imports run outside HTTP requests, can automatically check every 30 minutes, and support 7 days / 1 / 3 / 6 / 12 calendar months of history. Show persistent progress, last success, failures, retry and cancellation. Captures remain pending until reviewed. Preserve existing ledgers, encrypted credentials and agent tools.
+Implement the supplied Connected Apps reference inside Money's existing theme. Gmail imports run outside HTTP requests, can automatically check every 30 minutes, and support today-only / 7 days / 1 / 3 / 6 / 12 calendar months of history. Show persistent progress, last success, failures, retry and cancellation. Captures remain pending until reviewed. Preserve existing ledgers, encrypted credentials and agent tools.
 
 Use the existing Tomo SDK background task, not a separate broker. Each user's SQLite database owns jobs, settings, cursors and progress. Claim one bounded unit with a renewable lease and fencing token; interrupted units are replayable, failed units back off, and terminal failures are visible. Persist a user owner ID for discovery and validate active users before work. Stop/reload checks precede writes. No browser needs to stay open. Gmail listings paginate fully; progress totals are discovered counts, never presented as exact until discovery ends. Message IDs are namespaced by mailbox, with legacy dedupe compatibility. Raw mail bodies are not persisted.
 
