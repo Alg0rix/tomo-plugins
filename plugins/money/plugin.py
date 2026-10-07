@@ -985,3 +985,34 @@ def setup(api):
         {"type": "object", "properties": {}},
         _with_conn(lambda conn, a: connected.snapshot(conn)),
     )
+    _tool(
+        "add_bill",
+        "Create or update a recurring bill reminder (Money → Connected apps → Calendar). "
+        "title: 1-120 chars; amount in major units, e.g. '331890' for Rp331.890; "
+        "due: YYYY-MM-DD (first due date); recurrence: once|weekly|monthly|yearly; "
+        "timezone: IANA (default Asia/Jakarta); reminder_days: 0-28, default 1. "
+        "The bill is pushed to the connected Google Calendar on a later calendar sync.",
+        {"type": "object", "properties": {
+            "title": {"type": "string"},
+            "amount": {"type": "string", "description": "Decimal amount, e.g. '331890'"},
+            "due": {"type": "string", "description": "YYYY-MM-DD"},
+            "recurrence": {"type": "string", "enum": ["once", "weekly", "monthly", "yearly"]},
+            "timezone": {"type": "string"},
+            "reminder_days": {"type": "integer"},
+            "currency": {"type": "string", "description": "Three-letter code, default IDR"},
+        }, "required": ["title", "amount", "due"]},
+        _with_conn(lambda conn, a: google_apps.save_bill(conn, a)),
+    )
+    _tool(
+        "list_bills",
+        "List active recurring bills (id, title, amount, due date, recurrence, reminder_days).",
+        {"type": "object", "properties": {}},
+        _with_conn(lambda conn, a: {"bills": google_apps.bills(conn)}),
+    )
+    _tool(
+        "delete_bill",
+        "Deactivate a recurring bill by id (from list_bills); it is removed from "
+        "Google Calendar on the next calendar sync.",
+        {"type": "object", "properties": {"id": {"type": "string", "description": "Bill id from list_bills"}}, "required": ["id"]},
+        _with_conn(lambda conn, a: google_apps.delete_bill(conn, str(a.get("id") or ""))),
+    )
